@@ -2,7 +2,8 @@
 
 Figma Design IR is a Figma Desktop plugin that exports a current selection or
 an entire Figma Design file as a structured ZIP archive for AI-assisted
-implementation.
+implementation. **IR** means **Intermediate Representation**: structured design
+data between Figma's Plugin API and the AI agent that uses it.
 
 The archive includes canonical JSON, navigation Markdown, source evidence,
 assets, previews, a manifest, and explicit diagnostics for unavailable data.

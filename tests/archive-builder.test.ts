@@ -127,7 +127,7 @@ function createFixture(options?: {
   readonly previewReferenceHashOverride?: string;
 }): SyntheticArchiveFixture {
   const snapshotId = requireSnapshotId(
-    options?.snapshotId ?? "run3-archive-fixture",
+    options?.snapshotId ?? "archive-fixture",
   );
   const rootIds = options?.rootIds ?? ["node:alpha", "node:beta"];
   const diagnostics = options?.diagnostics ?? [];
@@ -356,7 +356,7 @@ function createFixture(options?: {
 }
 
 function createEntireFileFixture(): SyntheticArchiveFixture {
-  const snapshotId = requireSnapshotId("run6-entire-file-fixture");
+  const snapshotId = requireSnapshotId("entire-file-fixture");
   const pageIds = ["page:one", "page:two", "page:unavailable"] as const;
   const rootIds = [
     "node:one-a",
@@ -372,7 +372,7 @@ function createEntireFileFixture(): SyntheticArchiveFixture {
   );
   const diagnostics: readonly SyntheticDiagnostic[] = [
     {
-      id: "run6-raw-000001",
+      id: "entire-file-raw-000001",
       code: "RAW_EXPORT_FAILED",
       severity: "error",
       message: "Synthetic page raw export failed.",
@@ -382,7 +382,7 @@ function createEntireFileFixture(): SyntheticArchiveFixture {
       source: { kind: "page", id: pageIds[1] },
     },
     {
-      id: "run6-root-000002",
+      id: "entire-file-root-000002",
       code: "PAGE_COLLECTION_FAILED",
       severity: "error",
       message: "Synthetic direct page root collection failed.",
@@ -391,7 +391,7 @@ function createEntireFileFixture(): SyntheticArchiveFixture {
       source: { kind: "node", id: rootIds[3] },
     },
     {
-      id: "run6-page-000003",
+      id: "entire-file-page-000003",
       code: "PAGE_COLLECTION_FAILED",
       severity: "error",
       message: "Synthetic page collection failed.",
@@ -401,7 +401,7 @@ function createEntireFileFixture(): SyntheticArchiveFixture {
       source: { kind: "page", id: pageIds[2] },
     },
     {
-      id: "run6-component-000004",
+      id: "entire-file-component-000004",
       code: "COMPONENT_DEFINITION_EXPORT_FAILED",
       severity: "error",
       message: "Synthetic component definition export failed.",
@@ -461,7 +461,7 @@ function createEntireFileFixture(): SyntheticArchiveFixture {
         source: { kind: "page", id: pageIds[1] },
         childNodeIds: [rootIds[2], rootIds[3]],
         normalizedTrees: [{ source: { kind: "node", id: rootIds[2] } }],
-        diagnosticIds: ["run6-raw-000001", "run6-root-000002"],
+        diagnosticIds: ["entire-file-raw-000001", "entire-file-root-000002"],
       }),
     ),
     descriptor(
@@ -543,14 +543,14 @@ function createEntireFileFixture(): SyntheticArchiveFixture {
     {
       path: rawPageTwoPath,
       status: "unavailable",
-      diagnosticId: "run6-raw-000001",
+      diagnosticId: "entire-file-raw-000001",
     },
     { path: pageTwoArtifactPath, status: "emitted" },
     { path: rawPageThreePath, status: "emitted" },
     {
       path: pageThreeArtifactPath,
       status: "unavailable",
-      diagnosticId: "run6-page-000003",
+      diagnosticId: "entire-file-page-000003",
     },
   ];
   const requirements = [
@@ -560,7 +560,7 @@ function createEntireFileFixture(): SyntheticArchiveFixture {
         ? {
             path: componentDefinitionPath,
             status: "unavailable" as const,
-            diagnosticId: "run6-component-000004",
+            diagnosticId: "entire-file-component-000004",
           }
         : requirement,
     ),
@@ -817,7 +817,7 @@ describe("streaming current-selection archive assembly", () => {
   });
 
   it("produces deterministic bytes, order, compression, and fixed ZIP time across normalized completion timing", async () => {
-    const fixture = createFixture({ snapshotId: "run3-deterministic" });
+    const fixture = createFixture({ snapshotId: "archive-deterministic" });
     const [immediate, delayed] = await Promise.all([
       finalizeFixture(fixture, createRuntime()),
       finalizeFixture(
@@ -854,9 +854,9 @@ describe("streaming current-selection archive assembly", () => {
 
   it("allows only truthfully unavailable artifacts and rejects every fatal assembly path without completion", async () => {
     const rootId = "node:truthful";
-    const previewDiagnosticId = "run3-preview-000001";
+    const previewDiagnosticId = "archive-preview-000001";
     const previewPath = archivePaths.preview(
-      requireSnapshotId("run3-incomplete"),
+      requireSnapshotId("archive-incomplete"),
       rootId,
     );
     const previewError: SyntheticDiagnostic = {
@@ -869,7 +869,7 @@ describe("streaming current-selection archive assembly", () => {
       artifactPath: previewPath,
     };
     const incompleteFixture = createFixture({
-      snapshotId: "run3-incomplete",
+      snapshotId: "archive-incomplete",
       rootIds: [rootId],
       diagnostics: [previewError],
       unavailablePreviews: new Map([[rootId, previewDiagnosticId]]),
@@ -902,7 +902,7 @@ describe("streaming current-selection archive assembly", () => {
     );
 
     const missingGlobalRequirementFixture = createFixture({
-      snapshotId: "run4-missing-global-requirement",
+      snapshotId: "contract-missing-global-requirement",
       rootIds: [rootId],
     });
     const missingGlobalRequirementBuilder = await populateBuilder(
@@ -924,7 +924,7 @@ describe("streaming current-selection archive assembly", () => {
     );
 
     const mismatchedGlobalRefSnapshot = requireSnapshotId(
-      "run4-mismatched-global-ref",
+      "contract-mismatched-global-ref",
     );
     const mismatchedGlobalRefFixture = createFixture({
       snapshotId: mismatchedGlobalRefSnapshot,
@@ -947,7 +947,7 @@ describe("streaming current-selection archive assembly", () => {
     );
 
     const missingComponentDefinitionFixture = createFixture({
-      snapshotId: "run4-missing-component-definition",
+      snapshotId: "contract-missing-component-definition",
       rootIds: [rootId],
     });
     const missingComponentDefinitionBuilder = await populateBuilder(
@@ -970,7 +970,7 @@ describe("streaming current-selection archive assembly", () => {
     );
 
     const mismatchedComponentDefinitionSnapshot = requireSnapshotId(
-      "run4-mismatched-component-definition",
+      "contract-mismatched-component-definition",
     );
     const mismatchedComponentDefinitionFixture = createFixture({
       snapshotId: mismatchedComponentDefinitionSnapshot,
@@ -993,7 +993,7 @@ describe("streaming current-selection archive assembly", () => {
     );
 
     const orphanComponentDefinitionFixture = createFixture({
-      snapshotId: "run4-orphan-component-definition",
+      snapshotId: "contract-orphan-component-definition",
       rootIds: [rootId],
       omitComponentDefinitionIndexEntry: true,
     });
@@ -1011,7 +1011,7 @@ describe("streaming current-selection archive assembly", () => {
     );
 
     const mismatchedBinaryReferenceFixture = createFixture({
-      snapshotId: "run5-mismatched-binary-reference",
+      snapshotId: "media-mismatched-binary-reference",
       rootIds: [rootId],
       previewReferenceHashOverride: "d".repeat(64),
     });
@@ -1033,13 +1033,13 @@ describe("streaming current-selection archive assembly", () => {
       completeness: "complete",
     };
     const dishonestFixture = createFixture({
-      snapshotId: "run3-dishonest",
+      snapshotId: "archive-dishonest",
       rootIds: [rootId],
       diagnostics: [
         {
           ...previewError,
           artifactPath: archivePaths.preview(
-            requireSnapshotId("run3-dishonest"),
+            requireSnapshotId("archive-dishonest"),
             rootId,
           ),
         },
@@ -1061,13 +1061,13 @@ describe("streaming current-selection archive assembly", () => {
     );
 
     const mismatchedPathFixture = createFixture({
-      snapshotId: "run3-mismatched-artifact",
+      snapshotId: "archive-mismatched-artifact",
       rootIds: [rootId],
       diagnostics: [
         {
           ...previewError,
           artifactPath: archivePaths.irNodeRoot(
-            requireSnapshotId("run3-mismatched-artifact"),
+            requireSnapshotId("archive-mismatched-artifact"),
             rootId,
           ),
         },
@@ -1087,9 +1087,9 @@ describe("streaming current-selection archive assembly", () => {
       "missing-required-artifact",
     );
 
-    const fatalDiagnosticId = "run3-fatal-000001";
+    const fatalDiagnosticId = "archive-fatal-000001";
     const fatalFixture = createFixture({
-      snapshotId: "run3-fatal",
+      snapshotId: "archive-fatal",
       rootIds: [rootId],
       diagnostics: [
         {
@@ -1110,7 +1110,7 @@ describe("streaming current-selection archive assembly", () => {
       "invalid-manifest",
     );
 
-    const mismatchSnapshot = requireSnapshotId("run3-media-mismatch");
+    const mismatchSnapshot = requireSnapshotId("archive-media-mismatch");
     const mismatchCases: readonly ArchiveEntryDescriptor[] = [
       descriptor(
         archivePaths.preview(mismatchSnapshot, rootId),
@@ -1403,7 +1403,7 @@ describe("streaming entire-file archive validation", () => {
           serializeCanonicalJson({
             ...diagnosticsArtifact,
             diagnostics: diagnosticsArtifact.diagnostics.map((diagnostic) =>
-              diagnostic.id === "run6-raw-000001"
+              diagnostic.id === "entire-file-raw-000001"
                 ? {
                     ...diagnostic,
                     code: "ARCHIVE_ENTRY_TOO_LARGE",
@@ -1427,7 +1427,7 @@ describe("streaming entire-file archive validation", () => {
         "deflate",
         serializeCanonicalJson({
           ...page,
-          diagnosticIds: ["run6-raw-000001"],
+          diagnosticIds: ["entire-file-raw-000001"],
         }),
       );
     });

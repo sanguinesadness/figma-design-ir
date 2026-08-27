@@ -1,6 +1,4 @@
-AGENTS.md
 dist/
-docs/IMPLEMENTATION-PLAN.md
 node_modules/
 package-lock.json
 tests/golden/synthetic-design-ir.json

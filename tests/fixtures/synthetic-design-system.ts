@@ -42,7 +42,7 @@ import {
 
 export const SYNTHETIC_UNICODE_TEXT = "Пример 中文 e\u0301 🚀 “quoted” —";
 
-const SNAPSHOT_ID = requireSnapshotId("synthetic-run2");
+const SNAPSHOT_ID = requireSnapshotId("synthetic-design-ir");
 const RASTER_SHA256 = "a".repeat(64);
 const VECTOR_SHA256 = "b".repeat(64);
 const PREVIEW_SHA256 = "c".repeat(64);
@@ -1026,7 +1026,7 @@ export function buildSyntheticDesignSystemFixture(): SyntheticDesignSystemFixtur
       "synthetic-assets-metadata",
     ],
     limitations: [
-      "This Run 2 fixture contains contracts only; no Figma collector was invoked.",
+      "This synthetic fixture contains contracts only; no Figma collector was invoked.",
     ],
     diagnosticIds: [
       ...variables.index.diagnosticIds,

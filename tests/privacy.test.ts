@@ -46,7 +46,7 @@ describe("manifest and privacy invariants", () => {
     expect(manifest.networkAccess).not.toHaveProperty("devAllowedDomains");
   });
 
-  it("contains no network, persistence, content logging, or mutation surface", async () => {
+  it("contains no network, persistence, content logging, or disallowed API surface", async () => {
     const projectRoot = fileURLToPath(new URL("..", import.meta.url));
     const typescriptPaths = await productionSourcePaths(
       path.join(projectRoot, "src"),

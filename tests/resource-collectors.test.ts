@@ -102,7 +102,7 @@ function style(
   };
 }
 
-describe("Run 4 variable and style resource collection", () => {
+describe("Variable and style resource collection", () => {
   it("retains deterministic local/reference closure, raw aliases, four style families, bindings, and inaccessible diagnostics", async () => {
     const primitive = variable("variable:a-primitive", {
       "mode:night": { r: 0.1, g: 0.2, b: 0.3 },

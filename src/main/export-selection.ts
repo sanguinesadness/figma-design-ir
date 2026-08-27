@@ -89,7 +89,7 @@ interface ComponentDefinitionArtifactResult {
   readonly complete: boolean;
 }
 
-interface Run4Artifacts {
+interface GlobalArtifacts {
   readonly components: CollectedComponents;
   readonly styles: CollectedStyles;
   readonly variables: CollectedVariables;
@@ -871,7 +871,7 @@ function createDocument(
   page: PageNode,
   roots: readonly SceneNode[],
   rootResults: readonly RootArtifactResult[],
-  run4: Run4Artifacts,
+  globalArtifacts: GlobalArtifacts,
   diagnostics: DiagnosticBag,
 ): DesignIrDocument {
   return {
@@ -884,22 +884,22 @@ function createDocument(
     selectedRootIds: roots.map((root) => root.id),
     counts: {
       localVariables: collectionCount(
-        run4.variables.localCount,
-        run4.variables.localEnumerationComplete,
+        globalArtifacts.variables.localCount,
+        globalArtifacts.variables.localEnumerationComplete,
         "file-local",
         "Local variable enumeration was incomplete.",
       ),
       localStyles: collectionCount(
-        run4.styles.localCount,
-        run4.styles.localEnumerationComplete,
+        globalArtifacts.styles.localCount,
+        globalArtifacts.styles.localEnumerationComplete,
         "file-local",
         "Local style enumeration was incomplete.",
       ),
       localComponents: collectionCount(
-        run4.components.index.definitions.filter(
+        globalArtifacts.components.index.definitions.filter(
           (definition) => definition.source.remote === false,
         ).length,
-        run4.components.complete,
+        globalArtifacts.components.complete,
         "selected-reachable",
         "Some selected or reachable component metadata was inaccessible.",
       ),
@@ -1134,7 +1134,7 @@ export async function runSelectionExport(
     diagnostics,
     cancellation: options.cancellation,
   });
-  const run4: Run4Artifacts = { components, styles, variables };
+  const globalArtifacts: GlobalArtifacts = { components, styles, variables };
 
   for (const [path, artifact] of [
     [archivePaths.irComponents(snapshotId), components.index],
@@ -1159,7 +1159,7 @@ export async function runSelectionExport(
     page,
     roots,
     rootResults,
-    run4,
+    globalArtifacts,
     diagnostics,
   );
   const documentPath = archivePaths.irDocument(snapshotId);

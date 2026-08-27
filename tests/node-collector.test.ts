@@ -40,7 +40,7 @@ function isPaintArray(
   return Array.isArray(value);
 }
 
-describe("Run 3 node collection", () => {
+describe("Node collection", () => {
   it("preserves a complete invented subtree while normalizing risky values and dependencies safely", async () => {
     const arbitraryThrownMessage =
       "INVENTED_INTERNAL_THROW_TEXT_THAT_MUST_NOT_ESCAPE";

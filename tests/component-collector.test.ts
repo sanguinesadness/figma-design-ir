@@ -32,7 +32,7 @@ function scene(node: SyntheticNode): SceneNode {
   return node;
 }
 
-describe("Run 4 component and instance collection", () => {
+describe("Component and instance collection", () => {
   it("retains accessible closure deterministically without touching the throwing variant getter", async () => {
     const hostileText = "INVENTED_VARIANT_GETTER_TEXT_MUST_NOT_ESCAPE";
     let variantGetterReads = 0;

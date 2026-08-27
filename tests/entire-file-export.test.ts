@@ -27,7 +27,7 @@ import { sha256Hex } from "../src/shared/sha256";
 
 const TEXT_ENCODER = new TextEncoder();
 const TEXT_DECODER = new TextDecoder("utf-8", { fatal: true });
-const REPEATED_IMAGE_HASH = "image:invented-run6-repeat";
+const REPEATED_IMAGE_HASH = "image:invented-entire-file-repeat";
 const LARGE_UNICODE_TEXT = "Орбита 星 e\u0301 🧭 — bounded · ".repeat(256);
 
 interface Deferred<T> {
@@ -70,7 +70,7 @@ interface FakeApiHarness {
   readonly api: unknown;
   readonly loadAllPagesAsync: ReturnType<typeof vi.fn>;
   readonly currentPage: FakePage;
-  readonly currentPageWasMutated: () => boolean;
+  readonly currentPageWriteWasObserved: () => boolean;
   readonly getImageByHash: ReturnType<typeof vi.fn>;
   readonly getBytesAsync: ReturnType<typeof vi.fn>;
 }
@@ -124,7 +124,7 @@ interface RunEntireFileOptionsLike {
   }) => void;
 }
 
-interface Run6Runtime {
+interface EntireFileTestRuntime {
   readonly runEntireFileExport: (
     options: RunEntireFileOptionsLike,
   ) => Promise<void>;
@@ -141,10 +141,10 @@ interface Run6Runtime {
   ) => Promise<void>;
 }
 
-let run6RuntimePromise: Promise<Run6Runtime> | undefined;
+let entireFileRuntimePromise: Promise<EntireFileTestRuntime> | undefined;
 
-function loadRun6Runtime(): Promise<Run6Runtime> {
-  run6RuntimePromise ??= (async () => {
+function loadEntireFileTestRuntime(): Promise<EntireFileTestRuntime> {
+  entireFileRuntimePromise ??= (async () => {
     const exportPath = fileURLToPath(
       new URL("../src/main/export-entire-file.ts", import.meta.url),
     );
@@ -172,7 +172,7 @@ function loadRun6Runtime(): Promise<Run6Runtime> {
     });
     const source = result.outputFiles?.[0]?.text;
     if (source === undefined) {
-      throw new Error("The invented Run 6 test bundle was not produced.");
+      throw new Error("The invented entire-file test bundle was not produced.");
     }
     const loaded: unknown = await import(
       `data:text/javascript;base64,${Buffer.from(source).toString("base64")}`
@@ -189,11 +189,13 @@ function loadRun6Runtime(): Promise<Run6Runtime> {
       typeof loaded.ExportCancelledError !== "function" ||
       typeof loaded.assertCanonicalJsonFits !== "function"
     ) {
-      throw new Error("The invented Run 6 test bundle has the wrong exports.");
+      throw new Error(
+        "The invented entire-file test bundle has the wrong exports.",
+      );
     }
-    return loaded as unknown as Run6Runtime;
+    return loaded as unknown as EntireFileTestRuntime;
   })();
-  return run6RuntimePromise;
+  return entireFileRuntimePromise;
 }
 
 function deferred<T>(): Deferred<T> {
@@ -381,7 +383,7 @@ function makePage(id: string, options: PageOptions): FakePage {
     }),
     findAllWithCriteria: vi.fn((): FakeNode[] => {
       throw new Error(
-        "Run 6 must not use a synchronous full-page criteria scan.",
+        "Entire-file export must not use a synchronous full-page criteria scan.",
       );
     }),
   } as FakePage;
@@ -396,7 +398,7 @@ function makeVariables(count: number): {
   readonly variables: readonly Record<string, unknown>[];
 } {
   const modeId = "mode:invented";
-  const collectionId = "collection:invented-run6";
+  const collectionId = "collection:invented-entire-file";
   const variableIds = Array.from(
     { length: count },
     (_, index) => `variable:invented-${index.toString().padStart(3, "0")}`,
@@ -440,8 +442,8 @@ function createApi(
   },
 ): FakeApiHarness {
   const document: FakeDocument = {
-    id: "document:invented-run6",
-    name: "Invented Run 6 document",
+    id: "document:invented-entire-file",
+    name: "Invented Entire File Document",
     type: "DOCUMENT",
     parent: null,
     children: [...pages],
@@ -469,7 +471,7 @@ function createApi(
   const loadAllPagesAsync = vi.fn(() =>
     Promise.reject(new Error("loadAllPagesAsync must not be called.")),
   );
-  let currentPageMutated = false;
+  let currentPageWriteObserved = false;
   const apiObject: Record<string, unknown> = {
     root: document,
     mixed: Symbol("invented-mixed"),
@@ -504,14 +506,14 @@ function createApi(
     enumerable: true,
     get: () => currentPage,
     set: () => {
-      currentPageMutated = true;
+      currentPageWriteObserved = true;
     },
   });
   return {
     api: apiObject,
     loadAllPagesAsync,
     currentPage,
-    currentPageWasMutated: () => currentPageMutated,
+    currentPageWriteWasObserved: () => currentPageWriteObserved,
     getImageByHash,
     getBytesAsync,
   };
@@ -663,10 +665,10 @@ function hasBoundedDuration(message: ProgressMessage): boolean {
   );
 }
 
-describe("Run 6 entire-file scalability and resilience", () => {
+describe("Entire-file scalability and resilience", () => {
   it("streams a bounded combined stress fixture page-by-page with global closure and page-local release", async () => {
-    const runtime = await loadRun6Runtime();
-    const snapshotId = requireSnapshotId("run6-bounded-stress");
+    const runtime = await loadEntireFileTestRuntime();
+    const snapshotId = requireSnapshotId("entire-file-bounded-stress");
     const events: string[] = [];
     const loadedPageIds = new Set<string>();
     const warmedPageIds = new Set<string>();
@@ -858,8 +860,8 @@ describe("Run 6 entire-file scalability and resilience", () => {
     }[] = [];
     await withGlobalFigma(harness.api, async () => {
       await runtime.runEntireFileExport({
-        exportId: "export:run6-stress",
-        requestId: "request:run6-stress",
+        exportId: "export:entire-file-stress",
+        requestId: "request:entire-file-stress",
         snapshotId,
         cancellation: new runtime.ExportCancellationToken(),
         api: harness.api,
@@ -888,7 +890,7 @@ describe("Run 6 entire-file scalability and resilience", () => {
     };
 
     expect(harness.loadAllPagesAsync).not.toHaveBeenCalled();
-    expect(harness.currentPageWasMutated()).toBe(false);
+    expect(harness.currentPageWriteWasObserved()).toBe(false);
     expect(harness.currentPage.id).toBe("page:two");
     expect(events.filter((event) => event.startsWith("load:"))).toEqual([
       "load:page:one",
@@ -1255,7 +1257,7 @@ describe("Run 6 entire-file scalability and resilience", () => {
   });
 
   it("continues after an isolated middle-page load failure and finalizes a truthfully incomplete readable archive", async () => {
-    const runtime = await loadRun6Runtime();
+    const runtime = await loadEntireFileTestRuntime();
     const measuredCanonicalValue = {
       z: 'quote" slash\\ line\n control\u0001 lone\ud800 pair🚲',
       a: [-0, false, { k: "星 e\u0301 —" }],
@@ -1279,7 +1281,7 @@ describe("Run 6 entire-file scalability and resilience", () => {
         yieldControl: () => Promise.resolve(),
       }),
     ).rejects.toMatchObject({ code: "archive-capacity-exceeded" });
-    const snapshotId = requireSnapshotId("run6-page-failure");
+    const snapshotId = requireSnapshotId("entire-file-page-failure");
     const events: string[] = [];
     const oversizedVector = makeNode("node:oversized-vector", "VECTOR", {
       exportOverride: (settings) =>
@@ -1383,8 +1385,8 @@ describe("Run 6 entire-file scalability and resilience", () => {
     const messages: ExportProducerMessage[] = [];
     await withGlobalFigma(harness.api, async () => {
       await runtime.runEntireFileExport({
-        exportId: "export:run6-failure",
-        requestId: "request:run6-failure",
+        exportId: "export:entire-file-failure",
+        requestId: "request:entire-file-failure",
         snapshotId,
         cancellation: new runtime.ExportCancellationToken(),
         api: harness.api,
@@ -1767,8 +1769,8 @@ describe("Run 6 entire-file scalability and resilience", () => {
   });
 
   it("marks the exact component count partial when a root's child traversal is inaccessible", async () => {
-    const runtime = await loadRun6Runtime();
-    const snapshotId = requireSnapshotId("run6-partial-component-count");
+    const runtime = await loadEntireFileTestRuntime();
+    const snapshotId = requireSnapshotId("entire-file-partial-component-count");
     const events: string[] = [];
     const hiddenDefinition = makeComponent("component:inaccessible-child", []);
     const root = makeNode("node:inaccessible-children", "FRAME", {
@@ -1831,7 +1833,7 @@ describe("Run 6 entire-file scalability and resilience", () => {
   });
 
   it("cooperatively cancels at page, raw stabilization, raw emission, image, preview, and bounded archive-ack boundaries without finalizing a ZIP", async () => {
-    const runtime = await loadRun6Runtime();
+    const runtime = await loadEntireFileTestRuntime();
     const scenarios = [
       "page-load",
       "raw-stabilization",
@@ -1842,7 +1844,7 @@ describe("Run 6 entire-file scalability and resilience", () => {
       "archive-ack",
     ] as const;
     for (const scenario of scenarios) {
-      const snapshotId = requireSnapshotId(`run6-cancel-${scenario}`);
+      const snapshotId = requireSnapshotId(`entire-file-cancel-${scenario}`);
       const events: string[] = [];
       const entered = deferred<void>();
       const pageGate = deferred<void>();

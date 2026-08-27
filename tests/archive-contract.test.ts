@@ -18,13 +18,13 @@ import { serializeCanonicalJson } from "../src/shared/serialization";
 
 describe("archive contracts", () => {
   it("uses exact encoded opaque IDs, forward slashes, and no display names", () => {
-    const snapshotId = requireSnapshotId("run2-contract");
+    const snapshotId = requireSnapshotId("archive-contract");
     const sourceIds = ["12:34/56", "узел:中文", "punctuation !'()*", "%2F"];
 
     for (const sourceId of sourceIds) {
       const path = archivePaths.irNodeRoot(snapshotId, sourceId);
       expect(path).toBe(
-        `run2-contract/ir/nodes/roots/${encodeURIComponent(sourceId)}.json`,
+        `archive-contract/ir/nodes/roots/${encodeURIComponent(sourceId)}.json`,
       );
       expect(encodeSourceId(sourceId)).toBe(encodeURIComponent(sourceId));
       expect(path).not.toContain("Invented display name");
@@ -34,27 +34,31 @@ describe("archive contracts", () => {
 
   it("rejects invalid roots, traversal, malformed IDs, and invalid asset hashes", () => {
     expect(() => requireSnapshotId("../escape")).toThrow(ArchivePathError);
-    expect(() => assertSafeArchivePath("run2/../manifest.json")).toThrow(
+    expect(() => assertSafeArchivePath("archive/../manifest.json")).toThrow(
       ArchivePathError,
     );
-    expect(() => assertSafeArchivePath("run2\\manifest.json")).toThrow(
+    expect(() => assertSafeArchivePath("archive\\manifest.json")).toThrow(
       ArchivePathError,
     );
-    expect(() => assertSafeArchivePath("run2/%2e%2e/manifest.json")).toThrow(
+    expect(() => assertSafeArchivePath("archive/%2e%2e/manifest.json")).toThrow(
       ArchivePathError,
     );
-    expect(() => assertSafeArchivePath("run2/line\nbreak.json")).toThrow(
+    expect(() => assertSafeArchivePath("archive/line\nbreak.json")).toThrow(
       ArchivePathError,
     );
     expect(() => encodeSourceId("")).toThrow(ArchivePathError);
     expect(() => encodeSourceId("\ud800")).toThrow(ArchivePathError);
     expect(() =>
-      archivePaths.rasterAsset(requireSnapshotId("run2"), "not-a-hash", "png"),
+      archivePaths.rasterAsset(
+        requireSnapshotId("archive"),
+        "not-a-hash",
+        "png",
+      ),
     ).toThrow(ArchivePathError);
   });
 
   it("rejects duplicate entries before overwrite and exposes truthful manifest metadata", () => {
-    const snapshotId = requireSnapshotId("run2");
+    const snapshotId = requireSnapshotId("archive");
     const path = archivePaths.irDocument(snapshotId);
     const registry = new ArchiveEntryRegistry();
     const mutableMetadata = {

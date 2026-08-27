@@ -1368,7 +1368,7 @@ export async function collectComponents(
         }
 
         // This guard is deliberate: a variant component's inherited getter can
-        // throw in Figma. Definitions are read only from its owning set.
+        // throw in Figma. Definitions are obtained from its owning set.
         const propertyMetadata =
           type === "COMPONENT_SET" || owningSet !== undefined
             ? cachedDefinitions(definitionsOwner)

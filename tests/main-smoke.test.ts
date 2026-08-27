@@ -12,7 +12,7 @@ async function flushTasks(): Promise<void> {
 }
 
 describe("built main-thread shell", () => {
-  it("opens the themed UI and reports synthetic document metadata without mutation", async () => {
+  it("opens the themed UI and reports synthetic document metadata", async () => {
     const buildResult = await build({
       bundle: true,
       entryPoints: [

@@ -38,8 +38,7 @@ export interface PreviewExportNode {
 
 /**
  * Narrow, structural adapter used to select whole-file previews without
- * depending on Figma globals. All values are read-only and the selector never
- * mutates or recursively walks the supplied tree.
+ * depending on Figma globals or recursively walking the supplied tree.
  */
 export interface EntireFilePreviewSelectorNode extends PreviewExportNode {
   readonly type: string;
@@ -216,7 +215,6 @@ export async function exportNodePreview(
   }
 }
 
-// Retain the established selection-facing name so Run 3–5 callers and archive
-// behavior remain unchanged while whole-file orchestration uses the generic
-// exporter above.
+// Retain the selection-facing name for archive compatibility while whole-file
+// orchestration uses the generic exporter above.
 export const exportSelectedRootPreview = exportNodePreview;

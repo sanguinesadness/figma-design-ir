@@ -46,7 +46,7 @@ function snapshotTree(root: SyntheticScopeNode): readonly object[] {
 }
 
 describe("current-selection scope resolution", () => {
-  it("resolves table-driven empty, ordered, duplicate, and nested inputs without mutation", () => {
+  it("resolves table-driven empty, ordered, duplicate, and nested inputs while preserving caller input", () => {
     const documentNode = appendNode(null, "document:synthetic");
     const firstPage = appendNode(documentNode, "page:first");
     const secondPage = appendNode(documentNode, "page:second");

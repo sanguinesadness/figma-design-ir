@@ -54,7 +54,7 @@ function canonicalPaths(
 describe("agent-readable Markdown projection", () => {
   it("is deterministic, keeps canonical recovery links, and closes every relative link", () => {
     const fixture = buildSyntheticDesignSystemFixture();
-    const snapshotId = requireSnapshotId("synthetic-run2");
+    const snapshotId = requireSnapshotId("synthetic-design-ir");
     const componentSummaryIds = new Set(
       fixture.components.definitions.map((definition) => definition.source.id),
     );
@@ -189,7 +189,7 @@ describe("agent-readable Markdown projection", () => {
 
   it("keeps component prose bounded and links precise component data instead of replacing it", () => {
     const fixture = buildSyntheticDesignSystemFixture();
-    const snapshotId = requireSnapshotId("synthetic-run2");
+    const snapshotId = requireSnapshotId("synthetic-design-ir");
     const sourceDefinition = fixture.components.definitions.find(
       (candidate) => candidate.componentKind === "component-set",
     )!;

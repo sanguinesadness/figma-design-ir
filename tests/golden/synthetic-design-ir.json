@@ -1,7 +1,7 @@
 {
   "assets": [
     {
-      "archivePath": "synthetic-run2/assets/raster/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png",
+      "archivePath": "synthetic-design-ir/assets/raster/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png",
       "assetKind": "raster",
       "byteLength": 67,
       "contentSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -14,7 +14,7 @@
       }
     },
     {
-      "archivePath": "synthetic-run2/assets/vector/node%3Aorbit-mark.svg",
+      "archivePath": "synthetic-design-ir/assets/vector/node%3Aorbit-mark.svg",
       "assetKind": "vector",
       "byteLength": 143,
       "contentSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -224,7 +224,7 @@
     },
     "currentPageId": "page:z-specimens",
     "limitations": [
-      "This Run 2 fixture contains contracts only; no Figma collector was invoked."
+      "This synthetic fixture contains contracts only; no Figma collector was invoked."
     ],
     "pages": [
       {
@@ -347,8 +347,8 @@
   "nodes": [
     {
       "assetPaths": [
-        "synthetic-run2/assets/raster/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png",
-        "synthetic-run2/assets/vector/node%3Aorbit-mark.svg"
+        "synthetic-design-ir/assets/raster/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png",
+        "synthetic-design-ir/assets/vector/node%3Aorbit-mark.svg"
       ],
       "childNodeIds": [
         "node:specimens-root",
@@ -573,7 +573,7 @@
         {
           "assetRefs": [
             {
-              "archivePath": "synthetic-run2/assets/vector/node%3Aorbit-mark.svg",
+              "archivePath": "synthetic-design-ir/assets/vector/node%3Aorbit-mark.svg",
               "assetKind": "vector",
               "byteLength": 143,
               "contentSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -695,7 +695,7 @@
         {
           "assetRefs": [
             {
-              "archivePath": "synthetic-run2/assets/raster/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png",
+              "archivePath": "synthetic-design-ir/assets/raster/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png",
               "assetKind": "raster",
               "byteLength": 67,
               "contentSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -858,7 +858,7 @@
         "name": "Journey"
       },
       "previewPaths": [
-        "synthetic-run2/previews/node%3Ajourney-destination.png"
+        "synthetic-design-ir/previews/node%3Ajourney-destination.png"
       ],
       "reactionIds": [],
       "samples": [
@@ -983,7 +983,7 @@
   ],
   "previews": [
     {
-      "archivePath": "synthetic-run2/previews/node%3Ajourney-destination.png",
+      "archivePath": "synthetic-design-ir/previews/node%3Ajourney-destination.png",
       "byteLength": 327,
       "contentSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
       "diagnosticIds": [],
@@ -1011,8 +1011,8 @@
   "rootArtifacts": [
     {
       "assetPaths": [
-        "synthetic-run2/assets/raster/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png",
-        "synthetic-run2/assets/vector/node%3Aorbit-mark.svg"
+        "synthetic-design-ir/assets/raster/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png",
+        "synthetic-design-ir/assets/vector/node%3Aorbit-mark.svg"
       ],
       "dependencyRefs": [
         {
@@ -1035,7 +1035,7 @@
       "previewPaths": [],
       "rawArtifact": {
         "mediaType": "application/json",
-        "path": "synthetic-run2/raw/rest-v1/roots/node%3Aspecimens-root.json"
+        "path": "synthetic-design-ir/raw/rest-v1/roots/node%3Aspecimens-root.json"
       },
       "reactionIds": [
         "reaction:open-journey",

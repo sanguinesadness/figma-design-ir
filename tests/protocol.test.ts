@@ -174,7 +174,7 @@ describe("main to UI protocol validation", () => {
     const staleExportId = "export-000001";
     const pendingRequestId = "export-request-2";
     const staleRequestId = "export-request-1";
-    const snapshotId = "run3-protocol";
+    const snapshotId = "archive-protocol";
     const documentPath = `${snapshotId}/ir/document.json`;
     const validStart = {
       type: "start-export",

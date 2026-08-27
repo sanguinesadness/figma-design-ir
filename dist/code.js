@@ -1720,7 +1720,7 @@ ${markdownList(
 1. Read ${link(indexPath, archivePaths.manifest(snapshotId), "manifest.json")} for scope, archive paths, integrity, and final completeness.
 2. Read ${link(indexPath, archivePaths.diagnostics(snapshotId), "diagnostics.json")} before relying on unavailable or partial data.
 3. Return here and choose the token/style, component, or page index below.
-4. Read only the targeted summary needed for the task.
+4. Open the targeted summary needed for the task.
 5. Follow that summary's canonical JSON link for exact values, complete trees, raw REST-like evidence, and coverage.
 6. Follow asset and preview links only when visual evidence is needed; do not infer semantics from appearance.`,
       `## Archive overview and indexes
@@ -7777,7 +7777,7 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
       options.diagnostics.add({
         code: DIAGNOSTIC_CODES.variableCollectionFailed,
         severity: "error",
-        message: "An extended variable collection requires inherited mode values, but the read-only async API is unavailable.",
+        message: "An extended variable collection requires inherited mode values, but the required async API is unavailable.",
         phase: "collection",
         source: sourceForVariable(variable),
         propertyPath: "$.valuesByModeForCollectionAsync",
@@ -9689,7 +9689,7 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
       nodeCount
     };
   }
-  function createDocument(snapshotId, api, pages, currentPageId, pageArtifacts, run4, discovery, diagnostics) {
+  function createDocument(snapshotId, api, pages, currentPageId, pageArtifacts, globalArtifacts, discovery, diagnostics) {
     return {
       kind: "design-ir-document",
       schemaVersion: DESIGN_IR_SCHEMA_VERSION,
@@ -9700,13 +9700,13 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
       selectedRootIds: [],
       counts: {
         localVariables: collectionCount(
-          run4.variables.localCount,
-          run4.variables.localEnumerationComplete,
+          globalArtifacts.variables.localCount,
+          globalArtifacts.variables.localEnumerationComplete,
           "Local variable enumeration was incomplete."
         ),
         localStyles: collectionCount(
-          run4.styles.localCount,
-          run4.styles.localEnumerationComplete,
+          globalArtifacts.styles.localCount,
+          globalArtifacts.styles.localEnumerationComplete,
           "Local style enumeration was incomplete."
         ),
         localComponents: collectionCount(
@@ -9888,7 +9888,7 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
       api: api.variables
     });
     postProgress(options, "collection", 2, 2, "Global variables");
-    const run4 = {
+    const globalArtifacts = {
       components: componentIndex,
       styles,
       variables
@@ -9917,7 +9917,7 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
       pages,
       currentPageId,
       pageArtifacts,
-      run4,
+      globalArtifacts,
       discovery,
       diagnostics
     );
@@ -10741,7 +10741,7 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
       styleUsage: styleUsageFromTree(collectedAssets.tree)
     };
   }
-  function createDocument2(snapshotId, page, roots, rootResults, run4, diagnostics) {
+  function createDocument2(snapshotId, page, roots, rootResults, globalArtifacts, diagnostics) {
     return {
       kind: "design-ir-document",
       schemaVersion: DESIGN_IR_SCHEMA_VERSION,
@@ -10752,22 +10752,22 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
       selectedRootIds: roots.map((root) => root.id),
       counts: {
         localVariables: collectionCount2(
-          run4.variables.localCount,
-          run4.variables.localEnumerationComplete,
+          globalArtifacts.variables.localCount,
+          globalArtifacts.variables.localEnumerationComplete,
           "file-local",
           "Local variable enumeration was incomplete."
         ),
         localStyles: collectionCount2(
-          run4.styles.localCount,
-          run4.styles.localEnumerationComplete,
+          globalArtifacts.styles.localCount,
+          globalArtifacts.styles.localEnumerationComplete,
           "file-local",
           "Local style enumeration was incomplete."
         ),
         localComponents: collectionCount2(
-          run4.components.index.definitions.filter(
+          globalArtifacts.components.index.definitions.filter(
             (definition) => definition.source.remote === false
           ).length,
-          run4.components.complete,
+          globalArtifacts.components.complete,
           "selected-reachable",
           "Some selected or reachable component metadata was inaccessible."
         )
@@ -10986,7 +10986,7 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
       diagnostics,
       cancellation: options.cancellation
     });
-    const run4 = { components, styles, variables };
+    const globalArtifacts = { components, styles, variables };
     for (const [path, artifact] of [
       [archivePaths.irComponents(snapshotId), components.index],
       [archivePaths.irStyles(snapshotId), styles.artifact],
@@ -11009,7 +11009,7 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
       page,
       roots,
       rootResults,
-      run4,
+      globalArtifacts,
       diagnostics
     );
     const documentPath = archivePaths.irDocument(snapshotId);

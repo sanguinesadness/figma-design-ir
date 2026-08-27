@@ -161,7 +161,7 @@ interface GlobalDiscoveryState {
   localComponentEnumerationComplete: boolean;
 }
 
-interface Run4Artifacts {
+interface GlobalArtifacts {
   readonly components: ComponentsIndexIR;
   readonly styles: CollectedStyles;
   readonly variables: CollectedVariables;
@@ -1872,7 +1872,7 @@ function createDocument(
   pages: readonly PageNode[],
   currentPageId: string,
   pageArtifacts: readonly ArtifactRef[],
-  run4: Run4Artifacts,
+  globalArtifacts: GlobalArtifacts,
   discovery: GlobalDiscoveryState,
   diagnostics: DiagnosticBag,
 ): DesignIrDocument {
@@ -1886,13 +1886,13 @@ function createDocument(
     selectedRootIds: [],
     counts: {
       localVariables: collectionCount(
-        run4.variables.localCount,
-        run4.variables.localEnumerationComplete,
+        globalArtifacts.variables.localCount,
+        globalArtifacts.variables.localEnumerationComplete,
         "Local variable enumeration was incomplete.",
       ),
       localStyles: collectionCount(
-        run4.styles.localCount,
-        run4.styles.localEnumerationComplete,
+        globalArtifacts.styles.localCount,
+        globalArtifacts.styles.localEnumerationComplete,
         "Local style enumeration was incomplete.",
       ),
       localComponents: collectionCount(
@@ -2089,7 +2089,7 @@ export async function runEntireFileExport(
     api: api.variables as unknown as VariableCollectorApi,
   });
   postProgress(options, "collection", 2, 2, "Global variables");
-  const run4: Run4Artifacts = {
+  const globalArtifacts: GlobalArtifacts = {
     components: componentIndex,
     styles,
     variables,
@@ -2120,7 +2120,7 @@ export async function runEntireFileExport(
     pages,
     currentPageId,
     pageArtifacts,
-    run4,
+    globalArtifacts,
     discovery,
     diagnostics,
   );

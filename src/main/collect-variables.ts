@@ -444,7 +444,7 @@ async function readValuesByMode(
       code: DIAGNOSTIC_CODES.variableCollectionFailed,
       severity: "error",
       message:
-        "An extended variable collection requires inherited mode values, but the read-only async API is unavailable.",
+        "An extended variable collection requires inherited mode values, but the required async API is unavailable.",
       phase: "collection",
       source: sourceForVariable(variable),
       propertyPath: "$.valuesByModeForCollectionAsync",

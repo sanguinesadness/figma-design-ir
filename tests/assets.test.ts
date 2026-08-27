@@ -26,7 +26,7 @@ import type {
 import { planPreviewExport } from "../src/shared/png";
 import { sha256Hex } from "../src/shared/sha256";
 
-const SNAPSHOT_ID = requireSnapshotId("synthetic-run5");
+const SNAPSHOT_ID = requireSnapshotId("synthetic-media");
 
 function imagePaint(imageHash: string | null): PaintIR {
   return {
@@ -126,7 +126,7 @@ function generatedPngHeader(width: number, height: number): Uint8Array {
   return bytes;
 }
 
-describe("Run 5 raster, vector, and preview fidelity", () => {
+describe("Raster, vector, and preview fidelity", () => {
   it("detects PNG, JPEG, both GIF signatures, WebP, and unknown bytes by magic only", () => {
     const cases = [
       {
@@ -181,7 +181,7 @@ describe("Run 5 raster, vector, and preview fidelity", () => {
       getBytesAsync,
       syntheticHash: hash,
     }));
-    const diagnostics = new DiagnosticBag("run5-dedup");
+    const diagnostics = new DiagnosticBag("media-dedup");
     const harness = emitterHarness();
     const session = new AssetCollectionSession({
       snapshotId: SNAPSHOT_ID,
@@ -313,7 +313,7 @@ describe("Run 5 raster, vector, and preview fidelity", () => {
       exports.set(id, exportAsync);
       nodesById.set(id, { exportAsync });
     }
-    const diagnostics = new DiagnosticBag("run5-vector");
+    const diagnostics = new DiagnosticBag("media-vector");
     const harness = emitterHarness();
     const session = new AssetCollectionSession({
       snapshotId: SNAPSHOT_ID,
@@ -406,7 +406,7 @@ describe("Run 5 raster, vector, and preview fidelity", () => {
       badVector,
       oversizedVector,
     ]);
-    const diagnostics = new DiagnosticBag("run5-failures");
+    const diagnostics = new DiagnosticBag("media-failures");
     const harness = emitterHarness();
     const session = new AssetCollectionSession({
       snapshotId: SNAPSHOT_ID,
@@ -508,7 +508,7 @@ describe("Run 5 raster, vector, and preview fidelity", () => {
   });
 
   it("records an isolated preview failure and still exports a later oversized preview with exact bounds, scale, and hash", async () => {
-    const diagnostics = new DiagnosticBag("run5-preview");
+    const diagnostics = new DiagnosticBag("media-preview");
     const cancellation = new ExportCancellationToken();
     const failedRoot = {
       id: "node:preview-failed",

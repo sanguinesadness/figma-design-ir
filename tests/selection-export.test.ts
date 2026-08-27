@@ -82,8 +82,8 @@ function requireTextEntry(
   return message.data;
 }
 
-describe("Run 4 current-selection orchestration", () => {
-  it("emits enriched roots and mandatory deterministic design-system indexes without mutating the synthetic document", async () => {
+describe("Current-selection export orchestration", () => {
+  it("emits enriched roots and mandatory deterministic design-system indexes from the synthetic document", async () => {
     const buildResult = await build({
       bundle: true,
       entryPoints: [
@@ -105,14 +105,14 @@ describe("Run 4 current-selection orchestration", () => {
     const componentOnlyStyleId = "style:component-only";
     const documentNode: Record<string, unknown> = {
       id: "document:synthetic",
-      name: "Invented Run 4 Document",
+      name: "Invented Selection Document",
       type: "DOCUMENT",
       parent: null,
       children: [] as unknown[],
     };
     const pageNode: Record<string, unknown> = {
       id: "page:synthetic",
-      name: "Invented Run 4 Page",
+      name: "Invented Selection Page",
       type: "PAGE",
       parent: documentNode,
       children: [] as unknown[],
@@ -266,7 +266,7 @@ describe("Run 4 current-selection orchestration", () => {
       fills: [
         {
           type: "IMAGE",
-          imageHash: "image:synthetic-run5",
+          imageHash: "image:synthetic-media",
           scaleMode: "FILL",
           visible: true,
           opacity: 1,
@@ -424,7 +424,7 @@ describe("Run 4 current-selection orchestration", () => {
       getLocalPaintStylesAsync: () => Promise.resolve([paintStyle]),
       getLocalTextStylesAsync: () => Promise.resolve([textStyle]),
       getImageByHash: (hash: string) =>
-        hash === "image:synthetic-run5"
+        hash === "image:synthetic-media"
           ? { getBytesAsync: () => Promise.resolve(SYNTHETIC_PNG) }
           : null,
       getNodeByIdAsync: () => Promise.resolve(null),
@@ -476,8 +476,8 @@ describe("Run 4 current-selection orchestration", () => {
     figmaApi.ui.onmessage?.({
       type: "start-export",
       protocolVersion: PROTOCOL_VERSION,
-      requestId: "run4-request",
-      snapshotId: "run4-selection",
+      requestId: "selection-request",
+      snapshotId: "selection-export",
       scope: "current-selection",
       ownerConfirmedCurrent: true,
     });
@@ -504,40 +504,40 @@ describe("Run 4 current-selection orchestration", () => {
 
     const root = requireJsonEntry(
       posted,
-      "run4-selection/ir/nodes/roots/node%3Aroot.json",
+      "selection-export/ir/nodes/roots/node%3Aroot.json",
     );
     const document = requireJsonEntry(
       posted,
-      "run4-selection/ir/document.json",
+      "selection-export/ir/document.json",
     );
     const variables = requireJsonEntry(
       posted,
-      "run4-selection/ir/variables.json",
+      "selection-export/ir/variables.json",
     );
-    const styles = requireJsonEntry(posted, "run4-selection/ir/styles.json");
+    const styles = requireJsonEntry(posted, "selection-export/ir/styles.json");
     const components = requireJsonEntry(
       posted,
-      "run4-selection/ir/components.json",
+      "selection-export/ir/components.json",
     );
     const componentDefinition = requireJsonEntry(
       posted,
-      "run4-selection/ir/components/definitions/component%3Aexternal.json",
+      "selection-export/ir/components/definitions/component%3Aexternal.json",
     );
     const diagnosticArtifact = requireJsonEntry(
       posted,
-      "run4-selection/diagnostics.json",
+      "selection-export/diagnostics.json",
     );
     const agentIndex = requireTextEntry(
       posted,
-      "run4-selection/agent/index.md",
+      "selection-export/agent/index.md",
     );
     const componentMarkdown = requireTextEntry(
       posted,
-      "run4-selection/agent/components/component%3Aexternal.md",
+      "selection-export/agent/components/component%3Aexternal.md",
     );
     const pageMarkdown = requireTextEntry(
       posted,
-      "run4-selection/agent/pages/page%3Asynthetic.md",
+      "selection-export/agent/pages/page%3Asynthetic.md",
     );
 
     expect(agentIndex).toContain("## Snapshot identity and completeness");
@@ -554,7 +554,7 @@ describe("Run 4 current-selection orchestration", () => {
       assets: [
         {
           assetKind: "raster",
-          imageHash: "image:synthetic-run5",
+          imageHash: "image:synthetic-media",
           mediaType: "image/png",
           byteLength: SYNTHETIC_PNG.byteLength,
         },
@@ -682,15 +682,15 @@ describe("Run 4 current-selection orchestration", () => {
       },
       artifacts: {
         variables: {
-          path: "run4-selection/ir/variables.json",
+          path: "selection-export/ir/variables.json",
           mediaType: "application/json",
         },
         styles: {
-          path: "run4-selection/ir/styles.json",
+          path: "selection-export/ir/styles.json",
           mediaType: "application/json",
         },
         components: {
-          path: "run4-selection/ir/components.json",
+          path: "selection-export/ir/components.json",
           mediaType: "application/json",
         },
       },
@@ -713,7 +713,7 @@ describe("Run 4 current-selection orchestration", () => {
         {
           source: { id: "component:external", remote: false },
           definitionArtifact: {
-            path: "run4-selection/ir/components/definitions/component%3Aexternal.json",
+            path: "selection-export/ir/components/definitions/component%3Aexternal.json",
             mediaType: "application/json",
           },
         },
@@ -749,13 +749,13 @@ describe("Run 4 current-selection orchestration", () => {
       ready?.artifacts?.map((artifact) => artifact.path),
     );
     for (const path of [
-      "run4-selection/ir/variables.json",
-      "run4-selection/ir/styles.json",
-      "run4-selection/ir/components.json",
-      "run4-selection/ir/components/definitions/component%3Aexternal.json",
-      "run4-selection/raw/rest-v1/components/component%3Aexternal.json",
-      "run4-selection/assets/raster/431ced6916a2a21a156e38701afe55bbd7f88969fbbfc56d7fe099d47f265460.png",
-      "run4-selection/assets/vector/node%3Acomponent-child.svg",
+      "selection-export/ir/variables.json",
+      "selection-export/ir/styles.json",
+      "selection-export/ir/components.json",
+      "selection-export/ir/components/definitions/component%3Aexternal.json",
+      "selection-export/raw/rest-v1/components/component%3Aexternal.json",
+      "selection-export/assets/raster/431ced6916a2a21a156e38701afe55bbd7f88969fbbfc56d7fe099d47f265460.png",
+      "selection-export/assets/vector/node%3Acomponent-child.svg",
     ]) {
       expect(artifactPaths).toContain(path);
     }
@@ -835,7 +835,7 @@ describe("Run 4 current-selection orchestration", () => {
       await recoveryRuntime.runSelectionExport({
         exportId: "export:selection-oversize",
         requestId: "request:selection-oversize",
-        snapshotId: "run6-selection-oversize",
+        snapshotId: "selection-oversize",
         cancellation: new recoveryRuntime.ExportCancellationToken(),
         optionalArtifactByteLimit: 128,
         exportedAtUtc: "2026-08-15T00:00:00.000Z",
@@ -859,8 +859,8 @@ describe("Run 4 current-selection orchestration", () => {
       .map((artifact) => artifact.path);
     expect(unavailablePaths).toEqual(
       expect.arrayContaining([
-        "run6-selection-oversize/raw/rest-v1/roots/node%3Aroot.json",
-        "run6-selection-oversize/previews/node%3Aroot.png",
+        "selection-oversize/raw/rest-v1/roots/node%3Aroot.json",
+        "selection-oversize/previews/node%3Aroot.png",
       ]),
     );
     expect(
@@ -880,7 +880,7 @@ describe("Run 4 current-selection orchestration", () => {
     ).toBe(false);
     const recoveryDiagnostics = requireJsonEntry(
       recoveryPosted,
-      "run6-selection-oversize/diagnostics.json",
+      "selection-oversize/diagnostics.json",
     ).diagnostics as readonly Record<string, unknown>[];
     expect(
       recoveryDiagnostics.filter(

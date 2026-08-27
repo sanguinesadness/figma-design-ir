@@ -1,0 +1,1314 @@
+{
+  "assets": [
+    {
+      "archivePath": "synthetic-run2/assets/raster/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png",
+      "assetKind": "raster",
+      "byteLength": 67,
+      "contentSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "imageHash": "image:invented-paper-grain",
+      "mediaType": "image/png",
+      "source": {
+        "id": "image:invented-paper-grain",
+        "kind": "asset",
+        "name": "Invented paper grain"
+      }
+    },
+    {
+      "archivePath": "synthetic-run2/assets/vector/node%3Aorbit-mark.svg",
+      "assetKind": "vector",
+      "byteLength": 143,
+      "contentSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "eligibility": "explicit-svg-setting",
+      "exportSettings": {
+        "contentsOnly": true,
+        "format": "SVG_STRING",
+        "suffix": "-orbit"
+      },
+      "mediaType": "image/svg+xml",
+      "node": {
+        "id": "node:orbit-mark",
+        "kind": "node",
+        "name": "Orbit mark"
+      },
+      "source": {
+        "id": "asset:orbit-mark",
+        "kind": "asset",
+        "name": "Orbit mark"
+      }
+    }
+  ],
+  "components": {
+    "definitions": [
+      {
+        "componentKind": "component",
+        "componentSetId": "component:signal-card-set",
+        "nodeId": "node:signal-card-quiet",
+        "propertyDefinitions": [],
+        "source": {
+          "id": "component:signal-card-quiet",
+          "kind": "component",
+          "name": "Signal card / Quiet"
+        },
+        "variantAxes": [],
+        "variantProperties": [
+          {
+            "property": "State",
+            "value": "Quiet"
+          }
+        ]
+      },
+      {
+        "componentKind": "component-set",
+        "defaultVariantId": "node:signal-card-quiet",
+        "nodeId": "node:signal-card-set",
+        "propertyDefinitions": [
+          {
+            "defaultValue": true,
+            "id": "property:show-orbit",
+            "name": "Show orbit",
+            "preferredValues": [],
+            "propertyType": "BOOLEAN",
+            "variableBindings": []
+          }
+        ],
+        "source": {
+          "id": "component:signal-card-set",
+          "key": "synthetic-component-set-key",
+          "kind": "component",
+          "name": "Signal card"
+        },
+        "variantAxes": [
+          {
+            "name": "State",
+            "values": [
+              "Quiet",
+              "Bright"
+            ]
+          },
+          {
+            "name": "Size",
+            "values": [
+              "Compact",
+              "Wide"
+            ]
+          }
+        ],
+        "variantProperties": []
+      }
+    ],
+    "dependencies": [
+      {
+        "from": {
+          "id": "component:signal-card-quiet",
+          "kind": "component"
+        },
+        "relationship": "instance",
+        "to": {
+          "id": "component:beacon",
+          "kind": "component"
+        }
+      },
+      {
+        "from": {
+          "id": "component:signal-card-set",
+          "kind": "component"
+        },
+        "relationship": "contains",
+        "to": {
+          "id": "component:signal-card-quiet",
+          "kind": "component"
+        }
+      }
+    ]
+  },
+  "contract": {
+    "archiveVersion": "1.0.0",
+    "provenance": "Entirely invented synthetic contract fixture; not derived from a real design.",
+    "schemaVersion": "1.0.0"
+  },
+  "diagnostics": [
+    {
+      "causedDataLoss": true,
+      "code": "VARIABLE_ALIAS_CYCLE",
+      "id": "fixture-000001",
+      "propertyPath": "$.valuesByMode[\"mode:day\"]",
+      "severity": "error",
+      "source": {
+        "id": "variable:cycle-a",
+        "kind": "variable",
+        "name": "Cycle A"
+      }
+    },
+    {
+      "causedDataLoss": true,
+      "code": "VARIABLE_ALIAS_CYCLE",
+      "id": "fixture-000002",
+      "propertyPath": "$.valuesByMode[\"mode:night\"]",
+      "severity": "error",
+      "source": {
+        "id": "variable:cycle-a",
+        "kind": "variable",
+        "name": "Cycle A"
+      }
+    },
+    {
+      "causedDataLoss": true,
+      "code": "VARIABLE_ALIAS_MISSING_REFERENCE",
+      "id": "fixture-000003",
+      "propertyPath": "$.valuesByMode[\"mode:day\"]",
+      "severity": "warning",
+      "source": {
+        "id": "variable:remote-gap",
+        "kind": "variable",
+        "name": "Remote gap"
+      }
+    },
+    {
+      "causedDataLoss": true,
+      "code": "VARIABLE_ALIAS_MISSING_REFERENCE",
+      "id": "fixture-000004",
+      "propertyPath": "$.valuesByMode[\"mode:night\"]",
+      "severity": "warning",
+      "source": {
+        "id": "variable:remote-gap",
+        "kind": "variable",
+        "name": "Remote gap"
+      }
+    },
+    {
+      "causedDataLoss": false,
+      "code": "INTERACTION_UNSUPPORTED_ACTION",
+      "id": "fixture-000005",
+      "propertyPath": "$.reactions[2].actions[0]",
+      "severity": "warning",
+      "source": {
+        "id": "node:future-shape",
+        "kind": "node"
+      }
+    },
+    {
+      "causedDataLoss": false,
+      "code": "IR_UNKNOWN_NODE_TYPE",
+      "id": "fixture-000006",
+      "propertyPath": "$.nodeType",
+      "severity": "warning",
+      "source": {
+        "id": "node:future-shape",
+        "kind": "node"
+      }
+    }
+  ],
+  "document": {
+    "capabilities": [
+      "canonical-ir",
+      "raw-aliases",
+      "resolved-aliases",
+      "synthetic-assets-metadata"
+    ],
+    "counts": {
+      "localComponents": {
+        "coverage": "selected-reachable",
+        "status": "collected",
+        "value": 2
+      },
+      "localStyles": {
+        "coverage": "file-local",
+        "status": "collected",
+        "value": 4
+      },
+      "localVariables": {
+        "coverage": "file-local",
+        "status": "collected",
+        "value": 6
+      }
+    },
+    "currentPageId": "page:z-specimens",
+    "limitations": [
+      "This Run 2 fixture contains contracts only; no Figma collector was invoked."
+    ],
+    "pages": [
+      {
+        "id": "page:z-specimens",
+        "kind": "page",
+        "name": "Specimens"
+      },
+      {
+        "id": "page:a-journey",
+        "kind": "page",
+        "name": "Journey"
+      }
+    ],
+    "selectedRootIds": [
+      "node:specimens-root",
+      "node:signal-card-set"
+    ],
+    "source": {
+      "id": "document:aurora-sandbox",
+      "kind": "document",
+      "name": "Aurora Sandbox"
+    }
+  },
+  "interactions": [
+    {
+      "actions": [
+        {
+          "actionType": "navigate",
+          "destination": {
+            "id": "node:journey-destination",
+            "kind": "node",
+            "name": "Journey destination"
+          },
+          "navigation": "NAVIGATE",
+          "preserveScrollPosition": false,
+          "transition": {
+            "durationSeconds": 0.32,
+            "easing": {
+              "type": "CUBIC_BEZIER",
+              "x1": 0.2,
+              "x2": 0,
+              "y1": 0,
+              "y2": 1
+            },
+            "matchLayers": true,
+            "transitionType": "SMART_ANIMATE"
+          }
+        },
+        {
+          "actionType": "set-variable",
+          "value": "#f4d35e",
+          "variable": {
+            "id": "variable:accent-base",
+            "kind": "variable",
+            "name": "Accent base"
+          }
+        }
+      ],
+      "diagnosticIds": [],
+      "id": "reaction:open-journey",
+      "order": 0,
+      "sourceNode": {
+        "id": "node:signal-card-instance",
+        "kind": "node"
+      },
+      "trigger": {
+        "triggerType": "ON_CLICK"
+      }
+    },
+    {
+      "actions": [
+        {
+          "actionType": "set-variable",
+          "value": "#f4d35e",
+          "variable": {
+            "id": "variable:accent-base",
+            "kind": "variable",
+            "name": "Accent base"
+          }
+        }
+      ],
+      "diagnosticIds": [],
+      "id": "reaction:set-accent",
+      "order": 1,
+      "sourceNode": {
+        "id": "node:signal-card-instance",
+        "kind": "node"
+      },
+      "trigger": {
+        "triggerType": "MOUSE_ENTER"
+      }
+    },
+    {
+      "actions": [
+        {
+          "actionType": "unknown",
+          "diagnosticIds": [
+            "fixture-000005"
+          ],
+          "raw": {
+            "payload": {
+              "invented": true
+            },
+            "type": "SYNTHETIC_FUTURE_ACTION"
+          }
+        }
+      ],
+      "diagnosticIds": [
+        "fixture-000005"
+      ],
+      "id": "reaction:future-action",
+      "order": 2,
+      "sourceNode": {
+        "id": "node:future-shape",
+        "kind": "node"
+      },
+      "trigger": null
+    }
+  ],
+  "nodes": [
+    {
+      "assetPaths": [
+        "synthetic-run2/assets/raster/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png",
+        "synthetic-run2/assets/vector/node%3Aorbit-mark.svg"
+      ],
+      "childNodeIds": [
+        "node:specimens-root",
+        "node:page-note"
+      ],
+      "page": {
+        "id": "page:z-specimens",
+        "kind": "page",
+        "name": "Specimens"
+      },
+      "previewPaths": [],
+      "reactionIds": [
+        "reaction:open-journey",
+        "reaction:set-accent",
+        "reaction:future-action"
+      ],
+      "samples": [
+        {
+          "childIds": [
+            "node:multilingual-label",
+            "node:orbit-mark",
+            "node:signal-card-set",
+            "node:signal-card-instance",
+            "node:future-shape"
+          ],
+          "childOrder": 0,
+          "diagnosticIds": [],
+          "family": "container",
+          "geometry": {
+            "absoluteBounds": {
+              "height": 920,
+              "width": 1280,
+              "x": 48,
+              "y": 64
+            },
+            "localBounds": {
+              "height": 920,
+              "width": 1280,
+              "x": 0,
+              "y": 0
+            },
+            "rotation": -0
+          },
+          "layout": {
+            "grids": [
+              {
+                "alignment": "STRETCH",
+                "color": {
+                  "a": 0.08,
+                  "b": 0.9,
+                  "g": 0.6,
+                  "r": 0.2
+                },
+                "count": 12,
+                "gutterSize": 16,
+                "pattern": "COLUMNS",
+                "visible": true
+              }
+            ],
+            "itemSpacing": 24,
+            "mode": "HORIZONTAL",
+            "paddingBottom": 32,
+            "paddingLeft": 40,
+            "paddingRight": 40,
+            "paddingTop": 32,
+            "wrap": "WRAP"
+          },
+          "nodeType": "FRAME",
+          "source": {
+            "id": "node:specimens-root",
+            "kind": "node",
+            "name": "Specimen canvas"
+          },
+          "visible": true,
+          "visual": {
+            "clipsContent": true,
+            "cornerRadii": [
+              24,
+              24,
+              16,
+              16
+            ],
+            "effects": [
+              {
+                "blendMode": "NORMAL",
+                "color": {
+                  "a": 0.24,
+                  "b": 0,
+                  "g": 0,
+                  "r": 0
+                },
+                "effectType": "DROP_SHADOW",
+                "offset": {
+                  "x": 0,
+                  "y": 8
+                },
+                "radius": 18,
+                "spread": 0,
+                "visible": true
+              }
+            ],
+            "fills": [
+              {
+                "boundVariables": [
+                  {
+                    "propertyPath": "color",
+                    "variable": {
+                      "id": "variable:accent-chain",
+                      "kind": "variable",
+                      "name": "Accent chain"
+                    }
+                  }
+                ],
+                "color": {
+                  "a": 1,
+                  "b": 0.16,
+                  "g": 0.09,
+                  "r": 0.07
+                },
+                "paintType": "SOLID"
+              }
+            ],
+            "strokes": [
+              {
+                "color": {
+                  "a": 1,
+                  "b": 0.52,
+                  "g": 0.38,
+                  "r": 0.32
+                },
+                "paintType": "SOLID"
+              }
+            ]
+          }
+        },
+        {
+          "childOrder": 0,
+          "diagnosticIds": [],
+          "family": "text",
+          "nodeType": "TEXT",
+          "source": {
+            "id": "node:multilingual-label",
+            "kind": "node",
+            "name": "Multilingual label"
+          },
+          "text": {
+            "characters": "Пример 中文 é 🚀 “quoted” —",
+            "missingFont": false,
+            "segments": [
+              {
+                "characters": "Пример",
+                "end": 6,
+                "fontName": {
+                  "family": "Synthetic Sans",
+                  "style": "Regular"
+                },
+                "fontSize": 16,
+                "openTypeFeatures": {
+                  "liga": true
+                },
+                "start": 0,
+                "textStyle": {
+                  "id": "style:text-body",
+                  "kind": "style",
+                  "name": "Body invented"
+                }
+              },
+              {
+                "characters": "中文 é 🚀 “quoted” —",
+                "end": 26,
+                "fills": [
+                  {
+                    "color": {
+                      "a": 1,
+                      "b": 0.37,
+                      "g": 0.83,
+                      "r": 0.96
+                    },
+                    "paintType": "SOLID"
+                  }
+                ],
+                "fontName": {
+                  "family": "Synthetic Sans",
+                  "style": "Bold"
+                },
+                "fontSize": 18,
+                "hyperlink": {
+                  "type": "NODE",
+                  "value": "node:journey-destination"
+                },
+                "listOptions": {
+                  "type": "UNORDERED"
+                },
+                "paragraphSpacing": 8,
+                "start": 7,
+                "variableBindings": [
+                  {
+                    "propertyPath": "fills[0].color",
+                    "variable": {
+                      "id": "variable:accent-chain",
+                      "kind": "variable",
+                      "name": "Accent chain"
+                    }
+                  }
+                ]
+              }
+            ],
+            "textAutoResize": "HEIGHT",
+            "textTruncation": "DISABLED"
+          },
+          "visible": true,
+          "visual": {
+            "cornerRadius": {
+              "$type": "figma-mixed"
+            },
+            "fills": {
+              "$type": "figma-mixed"
+            },
+            "opacity": 1
+          }
+        },
+        {
+          "assetRefs": [
+            {
+              "archivePath": "synthetic-run2/assets/vector/node%3Aorbit-mark.svg",
+              "assetKind": "vector",
+              "byteLength": 143,
+              "contentSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "eligibility": "explicit-svg-setting",
+              "exportSettings": {
+                "contentsOnly": true,
+                "format": "SVG_STRING",
+                "suffix": "-orbit"
+              },
+              "mediaType": "image/svg+xml",
+              "node": {
+                "id": "node:orbit-mark",
+                "kind": "node",
+                "name": "Orbit mark"
+              },
+              "source": {
+                "id": "asset:orbit-mark",
+                "kind": "asset",
+                "name": "Orbit mark"
+              }
+            }
+          ],
+          "childIds": [],
+          "childOrder": 1,
+          "diagnosticIds": [],
+          "exportSettings": [
+            {
+              "contentsOnly": true,
+              "format": "SVG",
+              "suffix": "-orbit"
+            }
+          ],
+          "family": "vector",
+          "nodeType": "BOOLEAN_OPERATION",
+          "source": {
+            "id": "node:orbit-mark",
+            "kind": "node",
+            "name": "Orbit mark"
+          },
+          "vector": {
+            "vectorPaths": [
+              {
+                "data": "M0 8 A8 8 0 1 0 16 8 A8 8 0 1 0 0 8 Z",
+                "windingRule": "NONZERO"
+              }
+            ],
+            "windingRule": "NONZERO"
+          },
+          "visible": true
+        },
+        {
+          "childIds": [
+            "node:signal-card-quiet"
+          ],
+          "childOrder": 2,
+          "componentData": {
+            "component": {
+              "id": "component:signal-card-set",
+              "kind": "component",
+              "name": "Signal card"
+            },
+            "metadataCoverage": {
+              "status": "collected"
+            },
+            "propertyDefinitionIds": [
+              "property:show-orbit"
+            ],
+            "variantProperties": []
+          },
+          "diagnosticIds": [],
+          "family": "component",
+          "nodeType": "COMPONENT_SET",
+          "source": {
+            "id": "node:signal-card-set",
+            "kind": "node",
+            "name": "Signal card"
+          },
+          "visible": true
+        },
+        {
+          "childIds": [
+            "node:signal-card-label"
+          ],
+          "childOrder": 0,
+          "componentData": {
+            "component": {
+              "id": "component:signal-card-quiet",
+              "kind": "component",
+              "name": "Signal card / Quiet"
+            },
+            "componentSet": {
+              "id": "component:signal-card-set",
+              "kind": "component",
+              "name": "Signal card"
+            },
+            "metadataCoverage": {
+              "status": "collected"
+            },
+            "propertyDefinitionIds": [
+              "property:show-orbit"
+            ],
+            "variantProperties": [
+              {
+                "property": "State",
+                "value": "Quiet"
+              }
+            ]
+          },
+          "diagnosticIds": [],
+          "family": "component",
+          "nodeType": "COMPONENT",
+          "source": {
+            "id": "node:signal-card-quiet",
+            "kind": "node",
+            "name": "State=Quiet"
+          },
+          "visible": true
+        },
+        {
+          "assetRefs": [
+            {
+              "archivePath": "synthetic-run2/assets/raster/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png",
+              "assetKind": "raster",
+              "byteLength": 67,
+              "contentSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "imageHash": "image:invented-paper-grain",
+              "mediaType": "image/png",
+              "source": {
+                "id": "image:invented-paper-grain",
+                "kind": "asset",
+                "name": "Invented paper grain"
+              }
+            }
+          ],
+          "childIds": [],
+          "childOrder": 3,
+          "diagnosticIds": [],
+          "family": "instance",
+          "instanceData": {
+            "componentProperties": [
+              {
+                "id": "property:show-orbit",
+                "name": "Show orbit",
+                "propertyType": "BOOLEAN",
+                "value": true,
+                "variableBindings": []
+              }
+            ],
+            "exposedInstanceIds": [
+              "node:nested-beacon-instance"
+            ],
+            "mainComponent": {
+              "id": "component:signal-card-quiet",
+              "kind": "component",
+              "name": "Signal card / Quiet"
+            },
+            "metadataCoverage": {
+              "status": "collected"
+            },
+            "overrides": [
+              {
+                "id": "node:signal-card-label",
+                "overriddenFields": [
+                  "characters"
+                ]
+              }
+            ],
+            "scaleFactor": 1,
+            "swapTargets": []
+          },
+          "nodeType": "INSTANCE",
+          "source": {
+            "id": "node:signal-card-instance",
+            "kind": "node",
+            "name": "Signal card instance"
+          },
+          "visible": true,
+          "visual": {
+            "clipsContent": true,
+            "fills": [
+              {
+                "imageHash": "image:invented-paper-grain",
+                "paintType": "IMAGE",
+                "scaleMode": "FILL"
+              }
+            ],
+            "opacity": 1
+          }
+        },
+        {
+          "childOrder": 4,
+          "diagnosticIds": [
+            "fixture-000006"
+          ],
+          "family": "unknown",
+          "nodeType": "SYNTHETIC_FUTURE_NODE",
+          "raw": {
+            "$type": "unsupported",
+            "reason": "unknown",
+            "runtimeType": "synthetic-future-node"
+          },
+          "source": {
+            "id": "node:future-shape",
+            "kind": "node",
+            "name": "Future shape"
+          },
+          "unsupportedNodeType": "SYNTHETIC_FUTURE_NODE",
+          "visible": true
+        },
+        {
+          "childOrder": 1,
+          "diagnosticIds": [],
+          "family": "leaf",
+          "nodeType": "STAMP",
+          "properties": {
+            "syntheticNote": "Second direct page root preserves page child order."
+          },
+          "source": {
+            "id": "node:page-note",
+            "kind": "node",
+            "name": "Page note"
+          },
+          "visible": true
+        }
+      ],
+      "treeOrder": [
+        {
+          "family": "container",
+          "id": "node:specimens-root",
+          "visible": true
+        },
+        {
+          "family": "text",
+          "id": "node:multilingual-label",
+          "visible": true
+        },
+        {
+          "family": "vector",
+          "id": "node:orbit-mark",
+          "visible": true
+        },
+        {
+          "family": "component",
+          "id": "node:signal-card-set",
+          "visible": true
+        },
+        {
+          "family": "component",
+          "id": "node:signal-card-quiet",
+          "visible": true
+        },
+        {
+          "family": "text",
+          "id": "node:signal-card-label",
+          "visible": true
+        },
+        {
+          "family": "instance",
+          "id": "node:signal-card-instance",
+          "visible": true
+        },
+        {
+          "family": "unknown",
+          "id": "node:future-shape",
+          "visible": true
+        },
+        {
+          "family": "leaf",
+          "id": "node:page-note",
+          "visible": true
+        }
+      ]
+    },
+    {
+      "assetPaths": [],
+      "childNodeIds": [
+        "node:journey-destination"
+      ],
+      "page": {
+        "id": "page:a-journey",
+        "kind": "page",
+        "name": "Journey"
+      },
+      "previewPaths": [
+        "synthetic-run2/previews/node%3Ajourney-destination.png"
+      ],
+      "reactionIds": [],
+      "samples": [
+        {
+          "childIds": [
+            "node:absolute-chip",
+            "node:hidden-companion",
+            "node:alpha-mask"
+          ],
+          "childOrder": 0,
+          "diagnosticIds": [],
+          "family": "container",
+          "geometry": {
+            "absoluteBounds": {
+              "height": 900,
+              "width": 4800,
+              "x": 0,
+              "y": 0
+            },
+            "localBounds": {
+              "height": 900,
+              "width": 4800,
+              "x": 0,
+              "y": 0
+            }
+          },
+          "nodeType": "FRAME",
+          "source": {
+            "id": "node:journey-destination",
+            "kind": "node",
+            "name": "Journey destination"
+          },
+          "visible": true,
+          "visual": {
+            "clipsContent": true
+          }
+        },
+        {
+          "childOrder": 0,
+          "diagnosticIds": [],
+          "family": "leaf",
+          "layout": {
+            "layoutPositioning": "ABSOLUTE"
+          },
+          "nodeType": "RECTANGLE",
+          "properties": {
+            "syntheticRole": "absolute-positioned-child"
+          },
+          "source": {
+            "id": "node:absolute-chip",
+            "kind": "node",
+            "name": "Absolute chip"
+          },
+          "visible": true
+        },
+        {
+          "childOrder": 1,
+          "diagnosticIds": [],
+          "family": "leaf",
+          "nodeType": "ELLIPSE",
+          "properties": {
+            "syntheticRole": "hidden-node"
+          },
+          "source": {
+            "id": "node:hidden-companion",
+            "kind": "node",
+            "name": "Hidden companion"
+          },
+          "visible": false
+        },
+        {
+          "assetRefs": [],
+          "childIds": [],
+          "childOrder": 2,
+          "diagnosticIds": [],
+          "exportSettings": [],
+          "family": "vector",
+          "nodeType": "VECTOR",
+          "source": {
+            "id": "node:alpha-mask",
+            "kind": "node",
+            "name": "Alpha mask"
+          },
+          "vector": {
+            "vectorPaths": [
+              {
+                "data": "M0 0 H64 V64 H0 Z",
+                "windingRule": "NONZERO"
+              }
+            ]
+          },
+          "visible": true,
+          "visual": {
+            "isMask": true,
+            "maskType": "ALPHA"
+          }
+        }
+      ],
+      "treeOrder": [
+        {
+          "family": "container",
+          "id": "node:journey-destination",
+          "visible": true
+        },
+        {
+          "family": "leaf",
+          "id": "node:absolute-chip",
+          "visible": true
+        },
+        {
+          "family": "leaf",
+          "id": "node:hidden-companion",
+          "visible": false
+        },
+        {
+          "family": "vector",
+          "id": "node:alpha-mask",
+          "visible": true
+        }
+      ]
+    }
+  ],
+  "previews": [
+    {
+      "archivePath": "synthetic-run2/previews/node%3Ajourney-destination.png",
+      "byteLength": 327,
+      "contentSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "diagnosticIds": [],
+      "exportedBounds": {
+        "height": 768,
+        "width": 4096,
+        "x": 0,
+        "y": 0
+      },
+      "mediaType": "image/png",
+      "scale": 0.8533333333333334,
+      "sourceBounds": {
+        "height": 900,
+        "width": 4800,
+        "x": 0,
+        "y": 0
+      },
+      "sourceNode": {
+        "id": "node:journey-destination",
+        "kind": "node",
+        "name": "Journey destination"
+      }
+    }
+  ],
+  "rootArtifacts": [
+    {
+      "assetPaths": [
+        "synthetic-run2/assets/raster/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png",
+        "synthetic-run2/assets/vector/node%3Aorbit-mark.svg"
+      ],
+      "dependencyRefs": [
+        {
+          "id": "component:signal-card-quiet",
+          "kind": "component"
+        },
+        {
+          "id": "style:text-body",
+          "kind": "style"
+        },
+        {
+          "id": "variable:accent-chain",
+          "kind": "variable"
+        }
+      ],
+      "diagnosticIds": [
+        "fixture-000005",
+        "fixture-000006"
+      ],
+      "previewPaths": [],
+      "rawArtifact": {
+        "mediaType": "application/json",
+        "path": "synthetic-run2/raw/rest-v1/roots/node%3Aspecimens-root.json"
+      },
+      "reactionIds": [
+        "reaction:open-journey",
+        "reaction:set-accent",
+        "reaction:future-action"
+      ],
+      "source": {
+        "id": "node:specimens-root",
+        "kind": "node",
+        "name": "Specimen canvas"
+      }
+    }
+  ],
+  "styles": [
+    {
+      "diagnosticIds": [],
+      "source": {
+        "id": "style:effect-lift",
+        "key": "synthetic-effect-key",
+        "kind": "style",
+        "name": "Lift invented"
+      },
+      "styleType": "effect"
+    },
+    {
+      "diagnosticIds": [],
+      "source": {
+        "id": "style:grid-twelve",
+        "kind": "style",
+        "name": "Twelve columns invented"
+      },
+      "styleType": "grid"
+    },
+    {
+      "diagnosticIds": [],
+      "source": {
+        "id": "style:paint-accent",
+        "kind": "style",
+        "name": "Accent invented"
+      },
+      "styleType": "paint"
+    },
+    {
+      "diagnosticIds": [],
+      "source": {
+        "id": "style:text-body",
+        "kind": "style",
+        "name": "Body invented"
+      },
+      "styleType": "text"
+    }
+  ],
+  "variables": {
+    "collections": [
+      {
+        "defaultModeId": "mode:night",
+        "hiddenFromPublishing": true,
+        "modes": [
+          {
+            "id": "mode:night",
+            "name": "Night"
+          },
+          {
+            "id": "mode:day",
+            "name": "Day"
+          }
+        ],
+        "source": {
+          "id": "collection:theme",
+          "kind": "collection",
+          "name": "Synthetic theme"
+        },
+        "variableIds": [
+          "variable:accent-alias",
+          "variable:accent-base",
+          "variable:accent-chain",
+          "variable:cycle-a",
+          "variable:cycle-b",
+          "variable:remote-gap"
+        ]
+      }
+    ],
+    "variables": [
+      {
+        "diagnosticIds": [],
+        "source": {
+          "id": "variable:accent-base",
+          "kind": "variable",
+          "name": "Accent base"
+        },
+        "values": [
+          {
+            "aliasChain": [
+              "variable:accent-base"
+            ],
+            "modeId": "mode:night",
+            "raw": "#14213d",
+            "resolutionContext": [
+              {
+                "collectionId": "collection:theme",
+                "modeId": "mode:night"
+              }
+            ],
+            "resolved": "#14213d",
+            "status": "resolved"
+          },
+          {
+            "aliasChain": [
+              "variable:accent-base"
+            ],
+            "modeId": "mode:day",
+            "raw": "#f4d35e",
+            "resolutionContext": [
+              {
+                "collectionId": "collection:theme",
+                "modeId": "mode:day"
+              }
+            ],
+            "resolved": "#f4d35e",
+            "status": "resolved"
+          }
+        ]
+      },
+      {
+        "diagnosticIds": [],
+        "source": {
+          "id": "variable:accent-chain",
+          "kind": "variable",
+          "name": "Accent chain"
+        },
+        "values": [
+          {
+            "aliasChain": [
+              "variable:accent-chain",
+              "variable:accent-alias",
+              "variable:accent-base"
+            ],
+            "modeId": "mode:night",
+            "raw": {
+              "$type": "variable-alias",
+              "variableId": "variable:accent-alias"
+            },
+            "resolutionContext": [
+              {
+                "collectionId": "collection:theme",
+                "modeId": "mode:night"
+              }
+            ],
+            "resolved": "#14213d",
+            "status": "resolved"
+          },
+          {
+            "aliasChain": [
+              "variable:accent-chain",
+              "variable:accent-alias",
+              "variable:accent-base"
+            ],
+            "modeId": "mode:day",
+            "raw": {
+              "$type": "variable-alias",
+              "variableId": "variable:accent-alias"
+            },
+            "resolutionContext": [
+              {
+                "collectionId": "collection:theme",
+                "modeId": "mode:day"
+              }
+            ],
+            "resolved": "#f4d35e",
+            "status": "resolved"
+          }
+        ]
+      },
+      {
+        "diagnosticIds": [
+          "fixture-000001",
+          "fixture-000002"
+        ],
+        "source": {
+          "id": "variable:cycle-a",
+          "kind": "variable",
+          "name": "Cycle A"
+        },
+        "values": [
+          {
+            "aliasChain": [
+              "variable:cycle-a",
+              "variable:cycle-b",
+              "variable:cycle-a"
+            ],
+            "modeId": "mode:night",
+            "raw": {
+              "$type": "variable-alias",
+              "variableId": "variable:cycle-b"
+            },
+            "resolutionContext": [
+              {
+                "collectionId": "collection:theme",
+                "modeId": "mode:night"
+              }
+            ],
+            "status": "cycle"
+          },
+          {
+            "aliasChain": [
+              "variable:cycle-a",
+              "variable:cycle-b",
+              "variable:cycle-a"
+            ],
+            "modeId": "mode:day",
+            "raw": {
+              "$type": "variable-alias",
+              "variableId": "variable:cycle-b"
+            },
+            "resolutionContext": [
+              {
+                "collectionId": "collection:theme",
+                "modeId": "mode:day"
+              }
+            ],
+            "status": "cycle"
+          }
+        ]
+      },
+      {
+        "diagnosticIds": [
+          "fixture-000003",
+          "fixture-000004"
+        ],
+        "source": {
+          "id": "variable:remote-gap",
+          "kind": "variable",
+          "name": "Remote gap"
+        },
+        "values": [
+          {
+            "aliasChain": [
+              "variable:remote-gap",
+              "variable:unavailable-remote"
+            ],
+            "modeId": "mode:night",
+            "raw": {
+              "$type": "variable-alias",
+              "variableId": "variable:unavailable-remote"
+            },
+            "resolutionContext": [
+              {
+                "collectionId": "collection:theme",
+                "modeId": "mode:night"
+              }
+            ],
+            "status": "missing-reference"
+          },
+          {
+            "aliasChain": [
+              "variable:remote-gap",
+              "variable:unavailable-remote"
+            ],
+            "modeId": "mode:day",
+            "raw": {
+              "$type": "variable-alias",
+              "variableId": "variable:unavailable-remote"
+            },
+            "resolutionContext": [
+              {
+                "collectionId": "collection:theme",
+                "modeId": "mode:day"
+              }
+            ],
+            "status": "missing-reference"
+          }
+        ]
+      }
+    ]
+  }
+}

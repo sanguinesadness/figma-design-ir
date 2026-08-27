@@ -1,0 +1,36 @@
+# Maintainer-only instructions and implementation records
+/AGENTS.md
+/docs/
+
+# Dependencies and generated build output
+node_modules/
+dist/*
+!dist/code.js
+!dist/ui.html
+coverage/
+.vitest/
+*.tsbuildinfo
+
+# Local environment and tool state
+.env
+.env.*
+!.env.example
+.DS_Store
+*.log
+npm-debug.log*
+
+# Private design data and exported archives
+exports/
+snapshots/
+fixtures/private/
+acceptance-evidence/
+screenshots/
+archives/
+extracted/
+*.zip
+*.design-ir.zip
+*.fig
+
+# Editor-local files
+.idea/
+.vscode/

@@ -4,6 +4,7 @@ import { ExportCancellationToken } from "../src/main/cancellation";
 import {
   AssetCollectionSession,
   detectRasterFormat,
+  isStructurallyValidSvg,
   selectVectorAssetCandidates,
   type AssetArchiveEmitter,
   type AssetExportNode,
@@ -373,6 +374,52 @@ describe("Raster, vector, and preview fidelity", () => {
     expect(JSON.stringify(collected.tree)).toContain("node:nested");
     expect(JSON.stringify(collected.tree)).toContain("node:frame-child");
     expect(diagnostics.list()).toEqual([]);
+  });
+
+  it("rejects malformed SVG API output as an isolated diagnosed asset failure", async () => {
+    const malformedVector = vectorNode("node:malformed-vector");
+    const diagnostics = new DiagnosticBag("media-malformed-svg");
+    const harness = emitterHarness();
+    const session = new AssetCollectionSession({
+      snapshotId: SNAPSHOT_ID,
+      diagnostics,
+      cancellation: new ExportCancellationToken(),
+      emitter: harness.emitter,
+      api: { getImageByHash: () => null },
+    });
+
+    expect(isStructurallyValidSvg("<svg><g></g></svg>\n")).toBe(true);
+    expect(isStructurallyValidSvg("<svg><g></svg>\n")).toBe(false);
+    const collected = await session.collectTree(
+      malformedVector,
+      new Map<string, AssetExportNode>([
+        [
+          malformedVector.source.id,
+          {
+            exportAsync: () => Promise.resolve("<svg><g></svg>"),
+          },
+        ],
+      ]),
+    );
+
+    expect(collected.complete).toBe(false);
+    expect(collected.assets).toEqual([]);
+    expect(harness.emitted).toEqual([]);
+    expect(harness.unavailable).toEqual([
+      expect.objectContaining({
+        path: `${SNAPSHOT_ID}/assets/vector/node%3Amalformed-vector.svg`,
+      }),
+    ]);
+    expect(diagnostics.list()).toHaveLength(1);
+    expect(diagnostics.list()[0]).toMatchObject({
+      code: DIAGNOSTIC_CODES.vectorExportFailed,
+      severity: "error",
+      source: { id: "node:malformed-vector" },
+      causedDataLoss: true,
+    });
+    expect(JSON.stringify(diagnostics.list())).not.toContain(
+      "SVG export returned malformed XML.",
+    );
   });
 
   it("plans 1x and longest-dimension-bounded previews deterministically", () => {

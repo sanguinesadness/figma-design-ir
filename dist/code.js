@@ -2438,6 +2438,124 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
   function hasPrefix(bytes, signature) {
     return bytes.length >= signature.length && signature.every((byte, index) => bytes[index] === byte);
   }
+  function findSvgTagEnd(source, start) {
+    let quote;
+    for (let index = start; index < source.length; index += 1) {
+      const character = source[index];
+      if (quote !== void 0) {
+        if (character === quote) {
+          quote = void 0;
+        }
+        continue;
+      }
+      if (character === '"' || character === "'") {
+        quote = character;
+        continue;
+      }
+      if (character === "<") {
+        return -1;
+      }
+      if (character === ">") {
+        return index;
+      }
+    }
+    return -1;
+  }
+  function svgTagName(body) {
+    return /^[:A-Z_a-z][:A-Z_a-z.\-0-9]*/.exec(body)?.[0];
+  }
+  function isStructurallyValidSvg(source) {
+    if (source.length === 0) {
+      return false;
+    }
+    const elements = [];
+    let rootSeen = false;
+    let rootClosed = false;
+    let index = 0;
+    while (index < source.length) {
+      if (source[index] !== "<") {
+        const next = source.indexOf("<", index);
+        const end2 = next < 0 ? source.length : next;
+        const text = source.slice(index, end2);
+        if (elements.length === 0 && text.trim().length > 0) {
+          return false;
+        }
+        index = end2;
+        continue;
+      }
+      if (source.startsWith("<!--", index)) {
+        const end2 = source.indexOf("-->", index + 4);
+        if (end2 < 0 || source.slice(index + 4, end2).includes("--")) {
+          return false;
+        }
+        index = end2 + 3;
+        continue;
+      }
+      if (source.startsWith("<![CDATA[", index)) {
+        if (elements.length === 0) {
+          return false;
+        }
+        const end2 = source.indexOf("]]>", index + 9);
+        if (end2 < 0) {
+          return false;
+        }
+        index = end2 + 3;
+        continue;
+      }
+      if (source.startsWith("<?", index)) {
+        const end2 = source.indexOf("?>", index + 2);
+        if (end2 < 0) {
+          return false;
+        }
+        index = end2 + 2;
+        continue;
+      }
+      if (source.startsWith("<!", index)) {
+        return false;
+      }
+      const end = findSvgTagEnd(source, index + 1);
+      if (end < 0) {
+        return false;
+      }
+      let body = source.slice(index + 1, end).trim();
+      if (body.startsWith("/")) {
+        body = body.slice(1).trim();
+        const closing = svgTagName(body);
+        if (closing === void 0 || body.slice(closing.length).trim().length > 0 || elements.pop() !== closing) {
+          return false;
+        }
+        if (elements.length === 0) {
+          rootClosed = true;
+        }
+        index = end + 1;
+        continue;
+      }
+      let selfClosing = false;
+      if (body.endsWith("/")) {
+        selfClosing = true;
+        body = body.slice(0, -1).trimEnd();
+      }
+      const opening = svgTagName(body);
+      if (opening === void 0 || body.length > opening.length && !/\s/.test(body[opening.length]) || elements.length === 0 && (rootSeen || rootClosed)) {
+        return false;
+      }
+      if (elements.length === 0) {
+        if (opening !== "svg") {
+          return false;
+        }
+        rootSeen = true;
+      }
+      if (selfClosing) {
+        if (elements.length === 0) {
+          rootClosed = true;
+        }
+      } else {
+        elements.push(opening);
+      }
+      index = end + 1;
+    }
+    return rootSeen && rootClosed && elements.length === 0;
+  }
   function detectRasterFormat(bytes) {
     if (hasPrefix(bytes, [137, 80, 78, 71, 13, 10, 26, 10])) {
       return { extension: "png", mediaType: "image/png", known: true };
@@ -2936,6 +3054,14 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
           return resolution2;
         }
         throw error;
+      }
+      this.#cancellation.throwIfCancelled();
+      if (!isStructurallyValidSvg(svg)) {
+        return this.#vectorFailure(
+          node,
+          path,
+          new TypeError("SVG export returned malformed XML.")
+        );
       }
       const bytes = strToU8(svg);
       this.#cancellation.throwIfCancelled();

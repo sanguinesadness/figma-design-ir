@@ -151,6 +151,140 @@ function hasPrefix(bytes: Uint8Array, signature: readonly number[]): boolean {
   );
 }
 
+function findSvgTagEnd(source: string, start: number): number {
+  let quote: '"' | "'" | undefined;
+  for (let index = start; index < source.length; index += 1) {
+    const character = source[index]!;
+    if (quote !== undefined) {
+      if (character === quote) {
+        quote = undefined;
+      }
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      quote = character;
+      continue;
+    }
+    if (character === "<") {
+      return -1;
+    }
+    if (character === ">") {
+      return index;
+    }
+  }
+  return -1;
+}
+
+function svgTagName(body: string): string | undefined {
+  return /^[:A-Z_a-z][:A-Z_a-z.\-0-9]*/.exec(body)?.[0];
+}
+
+/**
+ * Checks the element nesting of standalone SVG output without invoking a DOM
+ * parser or mutating Figma. This protects the archive from a demonstrated API
+ * edge case where non-empty SVG_STRING output omitted a closing element.
+ */
+export function isStructurallyValidSvg(source: string): boolean {
+  if (source.length === 0) {
+    return false;
+  }
+  const elements: string[] = [];
+  let rootSeen = false;
+  let rootClosed = false;
+  let index = 0;
+  while (index < source.length) {
+    if (source[index] !== "<") {
+      const next = source.indexOf("<", index);
+      const end = next < 0 ? source.length : next;
+      const text = source.slice(index, end);
+      if (elements.length === 0 && text.trim().length > 0) {
+        return false;
+      }
+      index = end;
+      continue;
+    }
+    if (source.startsWith("<!--", index)) {
+      const end = source.indexOf("-->", index + 4);
+      if (end < 0 || source.slice(index + 4, end).includes("--")) {
+        return false;
+      }
+      index = end + 3;
+      continue;
+    }
+    if (source.startsWith("<![CDATA[", index)) {
+      if (elements.length === 0) {
+        return false;
+      }
+      const end = source.indexOf("]]>", index + 9);
+      if (end < 0) {
+        return false;
+      }
+      index = end + 3;
+      continue;
+    }
+    if (source.startsWith("<?", index)) {
+      const end = source.indexOf("?>", index + 2);
+      if (end < 0) {
+        return false;
+      }
+      index = end + 2;
+      continue;
+    }
+    if (source.startsWith("<!", index)) {
+      return false;
+    }
+    const end = findSvgTagEnd(source, index + 1);
+    if (end < 0) {
+      return false;
+    }
+    let body = source.slice(index + 1, end).trim();
+    if (body.startsWith("/")) {
+      body = body.slice(1).trim();
+      const closing = svgTagName(body);
+      if (
+        closing === undefined ||
+        body.slice(closing.length).trim().length > 0 ||
+        elements.pop() !== closing
+      ) {
+        return false;
+      }
+      if (elements.length === 0) {
+        rootClosed = true;
+      }
+      index = end + 1;
+      continue;
+    }
+    let selfClosing = false;
+    if (body.endsWith("/")) {
+      selfClosing = true;
+      body = body.slice(0, -1).trimEnd();
+    }
+    const opening = svgTagName(body);
+    if (
+      opening === undefined ||
+      (body.length > opening.length && !/\s/.test(body[opening.length]!)) ||
+      (elements.length === 0 && (rootSeen || rootClosed))
+    ) {
+      return false;
+    }
+    if (elements.length === 0) {
+      if (opening !== "svg") {
+        return false;
+      }
+      rootSeen = true;
+    }
+    if (selfClosing) {
+      if (elements.length === 0) {
+        rootClosed = true;
+      }
+    } else {
+      elements.push(opening);
+    }
+    index = end + 1;
+  }
+  return rootSeen && rootClosed && elements.length === 0;
+}
+
 export function detectRasterFormat(bytes: Uint8Array): DetectedRasterFormat {
   if (hasPrefix(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) {
     return { extension: "png", mediaType: "image/png", known: true };
@@ -785,6 +919,14 @@ export class AssetCollectionSession {
         return resolution;
       }
       throw error;
+    }
+    this.#cancellation.throwIfCancelled();
+    if (!isStructurallyValidSvg(svg)) {
+      return this.#vectorFailure(
+        node,
+        path,
+        new TypeError("SVG export returned malformed XML."),
+      );
     }
     const bytes = strToU8(svg);
     this.#cancellation.throwIfCancelled();

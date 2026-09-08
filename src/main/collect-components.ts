@@ -42,6 +42,14 @@ export interface CollectComponentsOptions {
   readonly diagnostics: DiagnosticBag;
   readonly cancellation: ExportCancellationToken;
   readonly session?: ComponentCollectionSession;
+  /**
+   * "reachable" (default) expands every component set that a used variant
+   * belongs to, so each sibling variant becomes a definition. "used" keeps
+   * only definitions instantiated by selection content (plus transitive
+   * instance/swap targets); sibling variants of their sets are never
+   * traversed and the sets themselves stay out of the index.
+   */
+  readonly componentScope?: "reachable" | "used";
   readonly onProgress?: (progress: ComponentCollectionProgress) => void;
 }
 
@@ -133,6 +141,12 @@ interface ComponentPropertyValuesResult {
 interface TraversalItem {
   readonly node: SceneNode;
   readonly ownerComponent?: SourceRef & { readonly kind: "component" };
+  /**
+   * True when the node was reached through the selection itself (a root or a
+   * descendant of one). Only selection content may expand component sets in
+   * "used" scope; dependency-enqueued nodes never do.
+   */
+  readonly selectionContent: boolean;
 }
 
 function basicNodeSource(
@@ -1038,6 +1052,7 @@ export async function collectComponents(
   options: CollectComponentsOptions,
 ): Promise<CollectedComponents> {
   const diagnosticStart = options.diagnostics.size();
+  const usedScope = options.componentScope === "used";
   const state: CollectionState = { complete: true };
   const definitions = new Map<string, ComponentDefinitionIR>();
   const definitionNodesById = new Map<string, SceneNode>();
@@ -1071,6 +1086,7 @@ export async function collectComponents(
   const exposedInstanceIdsByOwner = new Map<string, Set<string>>();
   const traversalQueue: TraversalItem[] = options.roots.map((node) => ({
     node,
+    selectionContent: true,
   }));
   let traversalCursor = 0;
   const visitedContexts = new Set<string>();
@@ -1186,7 +1202,7 @@ export async function collectComponents(
       }
       queuedResolvedDefinitionIds.add(id);
     }
-    traversalQueue.push({ node });
+    traversalQueue.push({ node, selectionContent: false });
   };
 
   const enqueueMainComponent = (node: SceneNode): void => {
@@ -1194,6 +1210,12 @@ export async function collectComponents(
     if (id !== undefined && options.session?.definitionById(id) !== undefined) {
       reusedDefinitionTraversals += 1;
       reportReuseBoundary();
+      return;
+    }
+    if (usedScope) {
+      // Used scope follows the instantiated variant only: the owning set and
+      // its sibling variants are not exported and must not be traversed.
+      enqueueDefinitionNode(node);
       return;
     }
     const parentRead = readProperty(node, "parent", options.diagnostics, state);
@@ -1290,6 +1312,15 @@ export async function collectComponents(
         });
         continue;
       }
+      if (
+        usedScope &&
+        nodeType(resolved, options.diagnostics, state) === "COMPONENT_SET"
+      ) {
+        // A swap/preferred target that resolves to a set is not instantiated
+        // selection content; the dependency edge already names it, so skip it
+        // instead of expanding every variant it contains.
+        continue;
+      }
       enqueueMainComponent(resolved);
       continue;
     }
@@ -1304,6 +1335,15 @@ export async function collectComponents(
       continue;
     }
     visitedContexts.add(context);
+    if (usedScope && !item.selectionContent) {
+      const visitedType = nodeType(item.node, options.diagnostics, state);
+      if (visitedType === "COMPONENT_SET") {
+        // Dependency-enqueued sets (swap/preferred targets) are not
+        // instantiated selection content: the dependency edges already name
+        // them, so neither the set definition nor its variants are exported.
+        continue;
+      }
+    }
     traversedNodeCount += 1;
     if (traversedNodeCount % 50 === 0) {
       reportProgress("traversal");
@@ -1361,7 +1401,9 @@ export async function collectComponents(
             );
             definitionsOwner = parent.value as SceneNode;
             canReadOwnDefinitions = false;
-            enqueueDefinitionNode(parent.value as SceneNode);
+            if (!usedScope) {
+              enqueueDefinitionNode(parent.value as SceneNode);
+            }
           } else {
             canReadOwnDefinitions = true;
           }
@@ -1675,6 +1717,7 @@ export async function collectComponents(
       traversalQueue.push({
         node: child,
         ...(childOwner === undefined ? {} : { ownerComponent: childOwner }),
+        selectionContent: item.selectionContent,
       });
     }
   }

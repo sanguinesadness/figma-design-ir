@@ -7,6 +7,7 @@ import {
   type ComponentCollectionProgress,
   type CollectedComponents,
 } from "../src/main/collect-components";
+
 import {
   ExportCancellationToken,
   ExportCancelledError,
@@ -612,5 +613,256 @@ describe("Component and instance collection", () => {
     expect(JSON.stringify(reused.progress)).not.toMatch(
       /Invented|component:|instance:|root:/u,
     );
+  });
+
+  it("keeps only instantiated variants and leaves sets unindexed in used scope", async () => {
+    const page = { id: "page:used", name: "Invented used page", type: "PAGE" };
+    const icon = {
+      id: "component:used-icon",
+      name: "Invented used icon",
+      type: "COMPONENT",
+      key: "key:used-icon",
+      remote: false,
+      parent: page,
+      variantProperties: null,
+      componentPropertyDefinitions: {},
+      componentPropertyReferences: null,
+      documentationLinks: [],
+      description: "",
+      descriptionMarkdown: "",
+      children: [],
+    } satisfies SyntheticNode;
+    const loudVariant: SyntheticNode = {
+      id: "component:used-loud",
+      name: "State=Loud",
+      type: "COMPONENT",
+      key: "key:used-loud",
+      remote: false,
+      parent: null,
+      variantProperties: { State: "Loud" },
+      componentPropertyDefinitions: {},
+      componentPropertyReferences: null,
+      documentationLinks: [],
+      description: "Invented loud variant that must stay unindexed.",
+      descriptionMarkdown: "",
+      children: [],
+    };
+    const quietVariant: SyntheticNode = {
+      id: "component:used-quiet",
+      name: "State=Quiet",
+      type: "COMPONENT",
+      key: "key:used-quiet",
+      remote: false,
+      parent: null,
+      variantProperties: { State: "Quiet" },
+      componentPropertyDefinitions: {},
+      componentPropertyReferences: null,
+      documentationLinks: [],
+      description: "Invented quiet variant instantiated by the selection.",
+      descriptionMarkdown: "",
+      children: [
+        {
+          id: "instance:nested-used",
+          name: "Invented nested used instance",
+          type: "INSTANCE",
+          componentProperties: {},
+          componentPropertyReferences: null,
+          overrides: [],
+          exposedInstances: [],
+          isExposedInstance: false,
+          scaleFactor: 1,
+          getMainComponentAsync: () => Promise.resolve(icon),
+          children: [],
+        } satisfies SyntheticNode,
+      ],
+    };
+    const set: SyntheticNode & { children: SyntheticNode[] } = {
+      id: "component:used-set",
+      name: "Invented used set",
+      type: "COMPONENT_SET",
+      key: "key:used-set",
+      remote: false,
+      parent: page,
+      variantProperties: null,
+      componentPropertyDefinitions: {
+        State: {
+          type: "VARIANT",
+          defaultValue: "Quiet",
+          variantOptions: ["Quiet", "Loud"],
+        },
+      },
+      componentPropertyReferences: null,
+      documentationLinks: [],
+      description: "",
+      descriptionMarkdown: "",
+      children: [quietVariant, loudVariant],
+    };
+    (loudVariant as unknown as { parent: unknown }).parent = set;
+    (quietVariant as unknown as { parent: unknown }).parent = set;
+
+    const selectedInstance = {
+      id: "instance:used-selected",
+      name: "Invented used selected instance",
+      type: "INSTANCE",
+      componentProperties: {},
+      componentPropertyReferences: null,
+      overrides: [],
+      exposedInstances: [],
+      scaleFactor: 1,
+      getMainComponentAsync: () => Promise.resolve(quietVariant),
+      children: [],
+    } satisfies SyntheticNode;
+    const root = {
+      id: "root:used",
+      name: "Invented used root",
+      type: "FRAME",
+      componentPropertyReferences: null,
+      children: [selectedInstance],
+    } satisfies SyntheticNode;
+    const adapter: ComponentCollectorAdapter = {
+      getNodeByIdAsync: (id) =>
+        Promise.resolve(
+          id === icon.id ? scene(icon) : id === set.id ? scene(set) : null,
+        ),
+    };
+
+    const diagnostics = new DiagnosticBag("component-used-scope-test");
+    const result = await collectComponents({
+      roots: [scene(root)],
+      adapter,
+      diagnostics,
+      cancellation: new ExportCancellationToken(),
+      componentScope: "used",
+    });
+
+    expect(
+      result.index.definitions.map((definition) => definition.source.id),
+    ).toEqual(["component:used-icon", "component:used-quiet"]);
+    expect(result.definitionNodesById.has("component:used-set")).toBe(false);
+    expect(result.definitionNodesById.has("component:used-loud")).toBe(false);
+    const quietDefinition = result.index.definitions.find(
+      (definition) => definition.source.id === quietVariant.id,
+    );
+    expect(quietDefinition).toMatchObject({
+      componentKind: "component",
+      componentSetId: set.id,
+      variantProperties: [{ property: "State", value: "Quiet" }],
+    });
+    expect(quietDefinition?.propertyDefinitions).toEqual([]);
+    expect(result.componentDataByNodeId.get(quietVariant.id)).toMatchObject({
+      metadataCoverage: { status: "collected" },
+      componentSet: { id: set.id },
+    });
+    expect(
+      new Set(
+        result.index.dependencies.map(
+          (dependency) =>
+            `${dependency.from.id}:${dependency.relationship}:${dependency.to.id}`,
+        ),
+      ),
+    ).toEqual(
+      new Set([
+        "component:used-set:contains:component:used-quiet",
+        "component:used-quiet:instance:component:used-icon",
+      ]),
+    );
+    // No diagnostics may be produced for the skipped sibling variant or the
+    // skipped set: scoping is deliberate, not data loss. The root instance
+    // edge has no component owner, and the contains edge names the
+    // un-exported set without requiring its definition.
+    expect(diagnostics.list()).toEqual([]);
+    expect(result.complete).toBe(true);
+    expect(
+      result.instanceDataByNodeId.get("instance:nested-used"),
+    ).toMatchObject({ mainComponent: { id: icon.id } });
+  });
+
+  it("fully expands a selected component set in used scope", async () => {
+    const page = {
+      id: "page:used-set-root",
+      name: "Invented page",
+      type: "PAGE",
+    };
+    const variantA: SyntheticNode = {
+      id: "component:setroot-a",
+      name: "State=A",
+      type: "COMPONENT",
+      key: "key:setroot-a",
+      remote: false,
+      parent: null,
+      variantProperties: { State: "A" },
+      componentPropertyDefinitions: {},
+      componentPropertyReferences: null,
+      documentationLinks: [],
+      description: "",
+      descriptionMarkdown: "",
+      children: [],
+    };
+    const variantB: SyntheticNode = {
+      id: "component:setroot-b",
+      name: "State=B",
+      type: "COMPONENT",
+      key: "key:setroot-b",
+      remote: false,
+      parent: null,
+      variantProperties: { State: "B" },
+      componentPropertyDefinitions: {},
+      componentPropertyReferences: null,
+      documentationLinks: [],
+      description: "",
+      descriptionMarkdown: "",
+      children: [],
+    };
+    const set: SyntheticNode & { children: SyntheticNode[] } = {
+      id: "component:setroot",
+      name: "Invented set-root set",
+      type: "COMPONENT_SET",
+      key: "key:setroot",
+      remote: false,
+      parent: page,
+      variantProperties: null,
+      componentPropertyDefinitions: {
+        State: {
+          type: "VARIANT",
+          defaultValue: "A",
+          variantOptions: ["A", "B"],
+        },
+      },
+      componentPropertyReferences: null,
+      documentationLinks: [],
+      description: "",
+      descriptionMarkdown: "",
+      children: [variantA, variantB],
+    };
+    (variantA as unknown as { parent: unknown }).parent = set;
+    (variantB as unknown as { parent: unknown }).parent = set;
+    Object.defineProperty(set, "defaultVariant", {
+      enumerable: true,
+      value: variantA,
+    });
+
+    const adapter: ComponentCollectorAdapter = {
+      getNodeByIdAsync: () => Promise.resolve(null),
+    };
+    const diagnostics = new DiagnosticBag("component-used-set-root-test");
+    const result = await collectComponents({
+      roots: [scene(set)],
+      adapter,
+      diagnostics,
+      cancellation: new ExportCancellationToken(),
+      componentScope: "used",
+    });
+
+    expect(
+      result.index.definitions.map((definition) => definition.source.id),
+    ).toEqual([
+      "component:setroot",
+      "component:setroot-a",
+      "component:setroot-b",
+    ]);
+    expect(result.definitionNodesById.get("component:setroot")?.id).toBe(
+      set.id,
+    );
+    expect(result.complete).toBe(true);
   });
 });

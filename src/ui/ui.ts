@@ -5,6 +5,7 @@ import {
 import {
   PROTOCOL_VERSION,
   parseMainToUiMessage,
+  type ExportComponentScope,
   type ExportFailureCode,
   type ExportId,
   type ExportScope,
@@ -49,6 +50,11 @@ const resultMessage = requireElement<HTMLElement>("result-message");
 const connectionStatus = requireElement<HTMLElement>("connection-status");
 const scopeInputs = [
   ...exportForm.querySelectorAll<HTMLInputElement>('input[name="scope"]'),
+];
+const componentScopeInputs = [
+  ...exportForm.querySelectorAll<HTMLInputElement>(
+    'input[name="componentScope"]',
+  ),
 ];
 
 function defaultSnapshotId(now = new Date()): string {
@@ -206,11 +212,14 @@ const session = new ExportSessionController(createBrowserArchiveRuntime(), {
 });
 
 function setBusy(busy: boolean): void {
+  const selectedScope = readSelectedScope();
   exportForm.querySelectorAll<HTMLInputElement>("input").forEach((input) => {
     input.disabled =
       busy ||
       (input.name === "scope" &&
-        !supportedScopes.includes(input.value as ExportScope));
+        !supportedScopes.includes(input.value as ExportScope)) ||
+      (input.name === "componentScope" &&
+        selectedScope !== "current-selection");
   });
   exportButton.disabled = busy || !initialized;
   cancelButton.hidden = !busy || activeExportId === null;
@@ -233,12 +242,21 @@ function readSelectedScope(): ExportScope | null {
     : null;
 }
 
+function readSelectedComponentScope(): ExportComponentScope {
+  const selected = componentScopeInputs.find((input) => input.checked)?.value;
+  return selected === "reachable" ? "reachable" : "used";
+}
+
 function beginPendingExport(snapshotId: string, scope: ExportScope): void {
   exportRequestSequence += 1;
   const requestId = `export-request-${exportRequestSequence}`;
   pendingSnapshotId = snapshotId;
   pendingRequestId = requestId;
   pendingScope = scope;
+  // Component scope only affects current-selection exports; the UI control
+  // is disabled for entire-file runs, so its value is not sent there.
+  const componentScope =
+    scope === "current-selection" ? readSelectedComponentScope() : undefined;
   clearValidation();
   setBusy(true);
   progressPanel.hidden = false;
@@ -264,6 +282,7 @@ function beginPendingExport(snapshotId: string, scope: ExportScope): void {
     requestId,
     snapshotId,
     scope,
+    ...(componentScope === undefined ? {} : { componentScope }),
     ownerConfirmedCurrent: true,
   });
 }
@@ -303,7 +322,11 @@ exportForm.addEventListener("submit", (event) => {
 snapshotInput.addEventListener("input", clearValidation);
 ownerConfirmation.addEventListener("change", clearValidation);
 for (const input of scopeInputs) {
-  input.addEventListener("change", clearValidation);
+  input.addEventListener("change", () => {
+    clearValidation();
+    // Reflect whether the component-scope control currently applies.
+    setBusy(false);
+  });
 }
 
 cancelButton.addEventListener("click", () => {

@@ -364,20 +364,29 @@
         requestId: value.requestId
       };
     }
-    if (value.type === "start-export" && hasExactKeys(value, [
+    if (value.type === "start-export" && (hasExactKeys(value, [
       "type",
       "protocolVersion",
       "requestId",
       "snapshotId",
       "scope",
       "ownerConfirmedCurrent"
-    ]) && isRequestId(value.requestId) && typeof value.snapshotId === "string" && parseSnapshotId(value.snapshotId) !== null && isExportScope(value.scope) && value.ownerConfirmedCurrent === true) {
+    ]) || hasExactKeys(value, [
+      "type",
+      "protocolVersion",
+      "requestId",
+      "snapshotId",
+      "scope",
+      "componentScope",
+      "ownerConfirmedCurrent"
+    ])) && isRequestId(value.requestId) && typeof value.snapshotId === "string" && parseSnapshotId(value.snapshotId) !== null && isExportScope(value.scope) && (value.componentScope === void 0 || value.componentScope === "used" || value.componentScope === "reachable") && value.ownerConfirmedCurrent === true) {
       return {
         type: "start-export",
         protocolVersion: PROTOCOL_VERSION,
         requestId: value.requestId,
         snapshotId: value.snapshotId,
         scope: value.scope,
+        ...value.componentScope === void 0 ? {} : { componentScope: value.componentScope },
         ownerConfirmedCurrent: true
       };
     }
@@ -2101,7 +2110,7 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
     };
   }
 
-  // node_modules/fflate/esm/browser.js
+  // ../../../node_modules/fflate/esm/browser.js
   var u8 = Uint8Array;
   var u16 = Uint16Array;
   var i32 = Int32Array;
@@ -10589,8 +10598,9 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
       return { diagnosticId: diagnostic.id };
     }
   }
-  async function collectComponentDefinitionArtifacts(components, snapshotId, diagnostics, requirements, options) {
+  async function collectComponentDefinitionArtifacts(components, snapshotId, diagnostics, requirements, assets, options) {
     const results = [];
+    const exportDefinitionAssets = options.componentScope === "reachable";
     const componentSummaryIds = new Set(
       components.index.definitions.filter(
         (definition) => components.definitionNodesById.has(definition.source.id)
@@ -10616,6 +10626,8 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
         results.length,
         components.index.definitions.length
       );
+      const collectedAssets = exportDefinitionAssets ? await assets.collectTree(collected.tree, collected.nodesById) : void 0;
+      const collectedTree = collectedAssets?.tree ?? collected.tree;
       const raw = await exportRawComponent(
         node,
         definition.source,
@@ -10643,12 +10655,13 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
       }
       const diagnosticIds = [
         .../* @__PURE__ */ new Set([
-          ...diagnostics.listSince(diagnosticStart).map((diagnostic) => diagnostic.id)
+          ...diagnostics.listSince(diagnosticStart).map((diagnostic) => diagnostic.id),
+          ...collectedAssets?.diagnosticIds ?? []
         ])
       ];
       const rawArtifact = "artifact" in raw ? raw.artifact : void 0;
       const normalizedTree = withRootMetadata2(
-        collected.tree,
+        collectedTree,
         rawArtifact,
         diagnosticIds
       );
@@ -10659,7 +10672,7 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
         dependencyRefs: collected.dependencyRefs,
         normalizedTree,
         reactions: collected.reactions,
-        assets: [],
+        assets: collectedAssets?.assets ?? [],
         coverage: {
           dependencies: collected.coverage.dependencyRefsComplete ? { status: "collected" } : {
             status: "partial",
@@ -10669,9 +10682,12 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
             status: "partial",
             reason: "Some reactions were inaccessible while collecting the reachable component definition."
           },
-          assets: {
+          assets: collectedAssets === void 0 ? {
             status: "not-collected",
             reason: "Binary assets are exported only for selected roots; component trees keep exact vector geometry and text values instead."
+          } : collectedAssets.complete ? { status: "collected" } : {
+            status: "partial",
+            reason: "One or more reachable raster or standalone vector assets could not be exported."
           },
           textSegments: collected.coverage.textSegmentsComplete ? { status: "collected" } : {
             status: "partial",
@@ -10723,9 +10739,9 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
         componentId: definition.source.id,
         artifactRef: { path, mediaType: "application/json" },
         dependencyRefs: collected.dependencyRefs,
-        styleUsage: styleUsageFromTree(collected.tree),
+        styleUsage: styleUsageFromTree(collectedTree),
         diagnosticIds,
-        complete: collected.coverage.dependencyRefsComplete && collected.coverage.interactionsComplete && collected.coverage.textSegmentsComplete
+        complete: collected.coverage.dependencyRefsComplete && collected.coverage.interactionsComplete && collected.coverage.textSegmentsComplete && (collectedAssets?.complete ?? true)
       });
       await yieldToFigma();
       options.cancellation.throwIfCancelled();
@@ -10879,7 +10895,7 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
       styleUsage: styleUsageFromTree(collectedAssets.tree)
     };
   }
-  function createDocument2(snapshotId, page, roots, rootResults, globalArtifacts, diagnostics) {
+  function createDocument2(snapshotId, page, roots, rootResults, globalArtifacts, diagnostics, componentScope) {
     return {
       kind: "design-ir-document",
       schemaVersion: DESIGN_IR_SCHEMA_VERSION,
@@ -10943,9 +10959,9 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
       limitations: [
         "Selection roots use deterministic document/canvas order because Plugin API selection order is unspecified.",
         "The installed @figma/plugin-typings@1.133.0 surface exposes annotations but no accessibility or ARIA node properties.",
-        "Component counts and per-definition IR cover only definitions instantiated by the selected roots (including nested instances and swap targets); sibling variants and owning component sets are not exported, and exact file-wide local component counts require an Entire file export.",
+        componentScope === "used" ? "Component counts and per-definition IR cover only definitions instantiated by the selected roots (including nested instances and swap targets); sibling variants and owning component sets are not exported, and exact file-wide local component counts require an Entire file export." : "Component counts and per-definition IR cover selected and reachable accessible definitions; exact file-wide local component counts require an Entire file export.",
         "Inaccessible referenced definitions remain unresolved with diagnostics and are never imported.",
-        "Raster and standalone-SVG bytes are exported only for image fills and vector nodes reachable through the selected roots; raster bytes referenced exclusively by component definitions or paint styles are omitted.",
+        componentScope === "used" ? "Raster and standalone-SVG bytes are exported only for image fills and vector nodes reachable through the selected roots; raster bytes referenced exclusively by component definitions or paint styles are omitted." : "Raster bytes are limited to image fills reachable through accessible selected roots, component definitions, and paint styles.",
         `Raw, raster, SVG, and preview artifacts that fail are absent only with source-attributed diagnostics under ${snapshotId}.`
       ],
       diagnosticIds: diagnostics.list().map((diagnostic) => diagnostic.id)
@@ -10997,6 +11013,7 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
     postProgress2(options, "scope", roots.length, roots.length);
     const page = figma.currentPage;
     const pageRef = sourceRefForPage2(page);
+    const componentScope = options.componentScope ?? "used";
     postProgress2(options, "collection", 0, roots.length + 3, "Components");
     const collectedComponents = await collectComponents({
       roots,
@@ -11010,13 +11027,14 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
       },
       diagnostics,
       cancellation: options.cancellation,
-      componentScope: "used"
+      componentScope
     });
     const componentDefinitionResults = await collectComponentDefinitionArtifacts(
       collectedComponents,
       snapshotId,
       diagnostics,
       requirements,
+      assetSession,
       options
     );
     const definitionArtifactById = new Map(
@@ -11104,7 +11122,10 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
       cancellation: options.cancellation
     });
     postProgress2(options, "asset", roots.length + 1, roots.length + 2, "Styles");
-    const styles = collectedStyles;
+    const styles = componentScope === "reachable" ? {
+      ...collectedStyles,
+      artifact: (await assetSession.collectStyles(collectedStyles.artifact)).artifact
+    } : collectedStyles;
     postProgress2(
       options,
       "collection",
@@ -11142,7 +11163,8 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
       roots,
       rootResults,
       globalArtifacts,
-      diagnostics
+      diagnostics,
+      componentScope
     );
     const documentPath = archivePaths.irDocument(snapshotId);
     await emitEntry2(
@@ -11459,7 +11481,7 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
       }
     });
   }
-  function startExport(snapshotId, requestId, scope) {
+  function startExport(snapshotId, requestId, scope, componentScope) {
     const exportId = nextExportId();
     if (pluginClosing) {
       return;
@@ -11483,6 +11505,7 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
       requestId,
       snapshotId,
       cancellation,
+      ...scope === "current-selection" && componentScope !== void 0 ? { componentScope } : {},
       postMessage: (message) => delivery.post(message)
     }).then(() => {
       if (delivery.failure !== null) {
@@ -11539,7 +11562,12 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
         });
         break;
       case "start-export":
-        startExport(message.snapshotId, message.requestId, message.scope);
+        startExport(
+          message.snapshotId,
+          message.requestId,
+          message.scope,
+          message.componentScope
+        );
         break;
       case "cancel-export":
         if (activeExport?.exportId === message.exportId) {

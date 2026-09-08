@@ -71,6 +71,14 @@ export interface RunSelectionExportOptions {
   ) => void | Promise<void>;
   readonly exportedAtUtc?: string;
   readonly optionalArtifactByteLimit?: number;
+  /**
+   * "used" (default) exports only definitions instantiated by the selected
+   * roots and binary assets from the roots alone. "reachable" additionally
+   * expands every component set touched by the selection and exports
+   * definition- and paint-style assets, matching full design-system
+   * coverage.
+   */
+  readonly componentScope?: "used" | "reachable";
 }
 
 interface RootArtifactResult {
@@ -507,9 +515,12 @@ async function collectComponentDefinitionArtifacts(
   snapshotId: SnapshotId,
   diagnostics: DiagnosticBag,
   requirements: ArchiveArtifactRequirement[],
+  assets: AssetCollectionSession,
   options: RunSelectionExportOptions,
 ): Promise<ComponentDefinitionArtifactResult[]> {
   const results: ComponentDefinitionArtifactResult[] = [];
+  // Reachable scope additionally exports binary assets for definition trees.
+  const exportDefinitionAssets = options.componentScope === "reachable";
   const componentSummaryIds = new Set(
     components.index.definitions
       .filter((definition) =>
@@ -537,6 +548,10 @@ async function collectComponentDefinitionArtifacts(
       results.length,
       components.index.definitions.length,
     );
+    const collectedAssets = exportDefinitionAssets
+      ? await assets.collectTree(collected.tree, collected.nodesById)
+      : undefined;
+    const collectedTree = collectedAssets?.tree ?? collected.tree;
     const raw = await exportRawComponent(
       node,
       definition.source,
@@ -567,11 +582,12 @@ async function collectComponentDefinitionArtifacts(
         ...diagnostics
           .listSince(diagnosticStart)
           .map((diagnostic) => diagnostic.id),
+        ...(collectedAssets?.diagnosticIds ?? []),
       ]),
     ];
     const rawArtifact = "artifact" in raw ? raw.artifact : undefined;
     const normalizedTree = withRootMetadata(
-      collected.tree,
+      collectedTree,
       rawArtifact,
       diagnosticIds,
     );
@@ -582,7 +598,7 @@ async function collectComponentDefinitionArtifacts(
       dependencyRefs: collected.dependencyRefs,
       normalizedTree,
       reactions: collected.reactions,
-      assets: [],
+      assets: collectedAssets?.assets ?? [],
       coverage: {
         dependencies: collected.coverage.dependencyRefsComplete
           ? { status: "collected" }
@@ -598,11 +614,20 @@ async function collectComponentDefinitionArtifacts(
               reason:
                 "Some reactions were inaccessible while collecting the reachable component definition.",
             },
-        assets: {
-          status: "not-collected",
-          reason:
-            "Binary assets are exported only for selected roots; component trees keep exact vector geometry and text values instead.",
-        },
+        assets:
+          collectedAssets === undefined
+            ? {
+                status: "not-collected",
+                reason:
+                  "Binary assets are exported only for selected roots; component trees keep exact vector geometry and text values instead.",
+              }
+            : collectedAssets.complete
+              ? { status: "collected" }
+              : {
+                  status: "partial",
+                  reason:
+                    "One or more reachable raster or standalone vector assets could not be exported.",
+                },
         textSegments: collected.coverage.textSegmentsComplete
           ? { status: "collected" }
           : {
@@ -659,12 +684,13 @@ async function collectComponentDefinitionArtifacts(
       componentId: definition.source.id,
       artifactRef: { path, mediaType: "application/json" },
       dependencyRefs: collected.dependencyRefs,
-      styleUsage: styleUsageFromTree(collected.tree),
+      styleUsage: styleUsageFromTree(collectedTree),
       diagnosticIds,
       complete:
         collected.coverage.dependencyRefsComplete &&
         collected.coverage.interactionsComplete &&
-        collected.coverage.textSegmentsComplete,
+        collected.coverage.textSegmentsComplete &&
+        (collectedAssets?.complete ?? true),
     });
     await yieldToFigma();
     options.cancellation.throwIfCancelled();
@@ -864,6 +890,7 @@ function createDocument(
   rootResults: readonly RootArtifactResult[],
   globalArtifacts: GlobalArtifacts,
   diagnostics: DiagnosticBag,
+  componentScope: "used" | "reachable",
 ): DesignIrDocument {
   return {
     kind: "design-ir-document",
@@ -928,9 +955,13 @@ function createDocument(
     limitations: [
       "Selection roots use deterministic document/canvas order because Plugin API selection order is unspecified.",
       "The installed @figma/plugin-typings@1.133.0 surface exposes annotations but no accessibility or ARIA node properties.",
-      "Component counts and per-definition IR cover only definitions instantiated by the selected roots (including nested instances and swap targets); sibling variants and owning component sets are not exported, and exact file-wide local component counts require an Entire file export.",
+      componentScope === "used"
+        ? "Component counts and per-definition IR cover only definitions instantiated by the selected roots (including nested instances and swap targets); sibling variants and owning component sets are not exported, and exact file-wide local component counts require an Entire file export."
+        : "Component counts and per-definition IR cover selected and reachable accessible definitions; exact file-wide local component counts require an Entire file export.",
       "Inaccessible referenced definitions remain unresolved with diagnostics and are never imported.",
-      "Raster and standalone-SVG bytes are exported only for image fills and vector nodes reachable through the selected roots; raster bytes referenced exclusively by component definitions or paint styles are omitted.",
+      componentScope === "used"
+        ? "Raster and standalone-SVG bytes are exported only for image fills and vector nodes reachable through the selected roots; raster bytes referenced exclusively by component definitions or paint styles are omitted."
+        : "Raster bytes are limited to image fills reachable through accessible selected roots, component definitions, and paint styles.",
       `Raw, raster, SVG, and preview artifacts that fail are absent only with source-attributed diagnostics under ${snapshotId}.`,
     ],
     diagnosticIds: diagnostics.list().map((diagnostic) => diagnostic.id),
@@ -987,6 +1018,7 @@ export async function runSelectionExport(
 
   const page = figma.currentPage;
   const pageRef = sourceRefForPage(page);
+  const componentScope = options.componentScope ?? "used";
   postProgress(options, "collection", 0, roots.length + 3, "Components");
   const collectedComponents = await collectComponents({
     roots,
@@ -1000,13 +1032,14 @@ export async function runSelectionExport(
     },
     diagnostics,
     cancellation: options.cancellation,
-    componentScope: "used",
+    componentScope,
   });
   const componentDefinitionResults = await collectComponentDefinitionArtifacts(
     collectedComponents,
     snapshotId,
     diagnostics,
     requirements,
+    assetSession,
     options,
   );
   const definitionArtifactById = new Map(
@@ -1100,7 +1133,15 @@ export async function runSelectionExport(
     cancellation: options.cancellation,
   });
   postProgress(options, "asset", roots.length + 1, roots.length + 2, "Styles");
-  const styles: CollectedStyles = collectedStyles;
+  // Paint-style raster bytes are exported only in reachable scope.
+  const styles: CollectedStyles =
+    componentScope === "reachable"
+      ? {
+          ...collectedStyles,
+          artifact: (await assetSession.collectStyles(collectedStyles.artifact))
+            .artifact,
+        }
+      : collectedStyles;
   postProgress(
     options,
     "collection",
@@ -1146,6 +1187,7 @@ export async function runSelectionExport(
     rootResults,
     globalArtifacts,
     diagnostics,
+    componentScope,
   );
   const documentPath = archivePaths.irDocument(snapshotId);
   await emitEntry(

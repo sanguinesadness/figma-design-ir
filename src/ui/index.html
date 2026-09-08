@@ -61,6 +61,36 @@
           </label>
         </fieldset>
 
+        <fieldset>
+          <legend>Component scope (current selection)</legend>
+          <label class="choice">
+            <input
+              id="component-scope-used"
+              type="radio"
+              name="componentScope"
+              value="used"
+              checked
+            />
+            <span>
+              <strong>Used components</strong>
+              <small
+                >Compact archive: only components instantiated by the selection,
+                with assets from the selection.</small
+              >
+            </span>
+          </label>
+          <label class="choice">
+            <input type="radio" name="componentScope" value="reachable" />
+            <span>
+              <strong>All reachable components</strong>
+              <small
+                >Full design-system coverage: every variant of each touched
+                component set, with definition and style assets.</small
+              >
+            </span>
+          </label>
+        </fieldset>
+
         <label class="field" for="snapshot-id">
           <span>Snapshot ID</span>
           <input

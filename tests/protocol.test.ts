@@ -201,6 +201,17 @@ describe("main to UI protocol validation", () => {
     expect(
       parseUiToMainMessage({ ...validStart, unexpected: true }),
     ).toBeNull();
+    const startWithScope = {
+      ...validStart,
+      componentScope: "reachable",
+    } as const;
+    expect(parseUiToMainMessage(startWithScope)).toEqual(startWithScope);
+    expect(
+      parseUiToMainMessage({ ...validStart, componentScope: "used" }),
+    ).toEqual({ ...validStart, componentScope: "used" });
+    expect(
+      parseUiToMainMessage({ ...validStart, componentScope: "everything" }),
+    ).toBeNull();
 
     const acceptedEntry = {
       type: "archive-entry-accepted",

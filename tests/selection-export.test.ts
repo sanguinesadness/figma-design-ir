@@ -43,8 +43,9 @@ interface SelectionRecoveryRuntime {
       cancel(): void;
       throwIfCancelled(): void;
     };
-    readonly optionalArtifactByteLimit: number;
-    readonly exportedAtUtc: string;
+    readonly optionalArtifactByteLimit?: number;
+    readonly exportedAtUtc?: string;
+    readonly componentScope?: "used" | "reachable";
     readonly postMessage: (message: PostedMessage) => void;
   }) => Promise<void>;
   readonly ExportCancellationToken: new () => {
@@ -894,5 +895,286 @@ describe("Current-selection export orchestration", () => {
           diagnostic.code === DIAGNOSTIC_CODES.archiveEntryTooLarge,
       ),
     ).toHaveLength(2);
+  });
+
+  it("exports definition and style assets when componentScope is reachable", async () => {
+    const buildResult = await build({
+      bundle: true,
+      entryPoints: [
+        fileURLToPath(new URL("../src/main/code.ts", import.meta.url)),
+      ],
+      format: "iife",
+      platform: "browser",
+      target: "es2022",
+      write: false,
+    });
+    const builtCode = buildResult.outputFiles?.[0]?.text;
+    expect(builtCode).toBeDefined();
+
+    const paintStyleId = "style:paint";
+    const documentNode: Record<string, unknown> = {
+      id: "document:synthetic",
+      name: "Invented Reachable Document",
+      type: "DOCUMENT",
+      parent: null,
+      children: [] as unknown[],
+    };
+    const pageNode: Record<string, unknown> = {
+      id: "page:synthetic",
+      name: "Invented Reachable Page",
+      type: "PAGE",
+      parent: documentNode,
+      children: [] as unknown[],
+      selection: [] as unknown[],
+    };
+    const componentChild: Record<string, unknown> = {
+      id: "node:component-child",
+      name: "Invented Definition Child",
+      type: "RECTANGLE",
+      visible: true,
+      locked: false,
+      parent: null,
+      exportAsync: vi.fn(() =>
+        Promise.resolve('<svg viewBox="0 0 8 8"><path d="M0 0L8 8Z"/></svg>'),
+      ),
+    };
+    const externalComponent: Record<string, unknown> = {
+      id: "component:external",
+      name: "Invented External Definition",
+      type: "COMPONENT",
+      key: "key:external-component",
+      remote: false,
+      visible: true,
+      locked: false,
+      parent: pageNode,
+      variantProperties: null,
+      componentPropertyDefinitions: {},
+      componentPropertyReferences: null,
+      documentationLinks: [],
+      description: "Invented definition outside the selected subtree.",
+      descriptionMarkdown: "Invented **external** definition.",
+      children: [componentChild],
+      exportAsync: vi.fn((settings: { readonly format: string }) =>
+        Promise.resolve(
+          settings.format === "JSON_REST_V1"
+            ? { id: "component:external" }
+            : SYNTHETIC_PNG,
+        ),
+      ),
+    };
+    componentChild.parent = externalComponent;
+    const selectedInstance: Record<string, unknown> = {
+      id: "instance:selected",
+      name: "Invented Linked Instance",
+      type: "INSTANCE",
+      visible: true,
+      locked: false,
+      parent: null,
+      componentProperties: {},
+      componentPropertyReferences: null,
+      overrides: [],
+      exposedInstances: [],
+      scaleFactor: 1,
+      getMainComponentAsync: () => Promise.resolve(externalComponent),
+      children: [],
+    };
+    const rootNode: Record<string, unknown> = {
+      id: "node:root",
+      name: "Invented Reachable Root",
+      type: "FRAME",
+      visible: true,
+      locked: false,
+      removed: false,
+      parent: pageNode,
+      children: [selectedInstance],
+      absoluteRenderBounds: { x: 0, y: 0, width: 100, height: 80 },
+      absoluteBoundingBox: { x: 0, y: 0, width: 100, height: 80 },
+      fillStyleId: paintStyleId,
+      fills: [],
+      exportAsync: vi.fn((settings: { readonly format: string }) =>
+        Promise.resolve(
+          settings.format === "JSON_REST_V1"
+            ? { id: "node:root" }
+            : SYNTHETIC_PNG,
+        ),
+      ),
+    };
+    selectedInstance.parent = rootNode;
+    (pageNode.children as unknown[]).push(rootNode, externalComponent);
+    (pageNode.selection as unknown[]).push(rootNode);
+    (documentNode.children as unknown[]).push(pageNode);
+
+    const paintStyle = {
+      id: paintStyleId,
+      key: "key:invented-paint",
+      name: "Invented Paint",
+      remote: false,
+      type: "PAINT",
+      description: "",
+      descriptionMarkdown: "",
+      documentationLinks: [],
+      paints: [
+        {
+          type: "IMAGE",
+          imageHash: "image:style-media",
+          scaleMode: "FILL",
+          visible: true,
+          opacity: 1,
+        },
+      ],
+    };
+
+    const posted: PostedMessage[] = [];
+    const uiMessageHandler: {
+      current: ((message: unknown) => void) | undefined;
+    } = { current: undefined };
+    const figmaApi = {
+      closePlugin: vi.fn(),
+      currentPage: pageNode,
+      editorType: "figma",
+      getLocalEffectStylesAsync: () => Promise.resolve([]),
+      getLocalGridStylesAsync: () => Promise.resolve([]),
+      getLocalPaintStylesAsync: () => Promise.resolve([paintStyle]),
+      getLocalTextStylesAsync: () => Promise.resolve([]),
+      getImageByHash: () => ({
+        getBytesAsync: () => Promise.resolve(SYNTHETIC_PNG),
+      }),
+      getNodeByIdAsync: () => Promise.resolve(null),
+      getStyleByIdAsync: (id: string) =>
+        Promise.resolve(id === paintStyleId ? paintStyle : null),
+      mixed: Symbol("invented-mixed"),
+      on: vi.fn(),
+      pluginId: "1234567890",
+      root: documentNode,
+      showUI: vi.fn(),
+      ui: {
+        onmessage: undefined as ((message: unknown) => void) | undefined,
+        postMessage: (message: PostedMessage) => {
+          posted.push(message);
+          if (
+            message.type === "archive-entry" &&
+            typeof message.exportId === "string" &&
+            typeof message.sequence === "number"
+          ) {
+            queueMicrotask(() => {
+              uiMessageHandler.current?.({
+                type: "archive-entry-accepted",
+                protocolVersion: PROTOCOL_VERSION,
+                exportId: message.exportId,
+                sequence: message.sequence,
+              });
+            });
+          }
+        },
+      },
+      variables: {
+        getLocalVariableCollectionsAsync: () => Promise.resolve([]),
+        getLocalVariablesAsync: () => Promise.resolve([]),
+        getVariableByIdAsync: () => Promise.resolve(null),
+        getVariableCollectionByIdAsync: () => Promise.resolve(null),
+      },
+    };
+
+    const previousFigma = Object.getOwnPropertyDescriptor(globalThis, "figma");
+    Object.defineProperty(globalThis, "figma", {
+      configurable: true,
+      writable: true,
+      value: figmaApi,
+    });
+    try {
+      const selectionExportPath = fileURLToPath(
+        new URL("../src/main/export-selection.ts", import.meta.url),
+      );
+      const cancellationPath = fileURLToPath(
+        new URL("../src/main/cancellation.ts", import.meta.url),
+      );
+      const reachableBundle = await build({
+        bundle: true,
+        stdin: {
+          contents: [
+            `export { runSelectionExport } from ${JSON.stringify(selectionExportPath)};`,
+            `export { ExportCancellationToken } from ${JSON.stringify(cancellationPath)};`,
+          ].join("\n"),
+          loader: "ts",
+          resolveDir: fileURLToPath(new URL("..", import.meta.url)),
+        },
+        format: "esm",
+        platform: "node",
+        target: "es2022",
+        write: false,
+      });
+      const reachableSource = reachableBundle.outputFiles?.[0]?.text;
+      if (reachableSource === undefined) {
+        throw new Error("The reachable bundle was not produced.");
+      }
+      const reachableRuntime = (await import(
+        `data:text/javascript;base64,${Buffer.from(reachableSource).toString("base64")}`
+      )) as SelectionRecoveryRuntime;
+      await reachableRuntime.runSelectionExport({
+        exportId: "export:selection-reachable",
+        requestId: "request:selection-reachable",
+        snapshotId: "selection-reachable",
+        cancellation: new reachableRuntime.ExportCancellationToken(),
+        componentScope: "reachable",
+        exportedAtUtc: "2026-08-15T00:00:00.000Z",
+        postMessage: (message) => {
+          posted.push(message);
+        },
+      });
+    } finally {
+      if (previousFigma === undefined) {
+        Reflect.deleteProperty(globalThis, "figma");
+      } else {
+        Object.defineProperty(globalThis, "figma", previousFigma);
+      }
+    }
+
+    expect(posted.some((message) => message.type === "export-failed")).toBe(
+      false,
+    );
+    const ready = posted.find((message) => message.type === "export-ready");
+    expect(ready).toBeDefined();
+    const artifactPaths = new Set(
+      ready?.artifacts
+        ?.filter((artifact) => artifact.status === "emitted")
+        .map((artifact) => artifact.path) ?? [],
+    );
+    // Reachable scope exports the definition's vector child and paint-style
+    // raster bytes on top of the used-scope baseline.
+    expect(
+      artifactPaths.has(
+        "selection-reachable/assets/vector/node%3Acomponent-child.svg",
+      ),
+    ).toBe(true);
+    expect(
+      posted.some(
+        (message) =>
+          message.type === "archive-entry" &&
+          message.path ===
+            "selection-reachable/assets/raster/431ced6916a2a21a156e38701afe55bbd7f88969fbbfc56d7fe099d47f265460.png",
+      ),
+    ).toBe(true);
+    const componentDefinition = requireJsonEntry(
+      posted,
+      "selection-reachable/ir/components/definitions/component%3Aexternal.json",
+    );
+    expect(
+      (componentDefinition.assets as readonly Record<string, unknown>[]).some(
+        (asset) => asset.assetKind === "vector",
+      ),
+    ).toBe(true);
+    expect(
+      (componentDefinition.coverage as Record<string, unknown>).assets,
+    ).toEqual({ status: "collected" });
+    // The used-scope-only limitation text is replaced by the reachable one.
+    const document = requireJsonEntry(
+      posted,
+      "selection-reachable/ir/document.json",
+    );
+    expect(
+      (document.limitations as readonly string[]).some((limitation) =>
+        limitation.includes("reachable accessible definitions"),
+      ),
+    ).toBe(true);
   });
 });

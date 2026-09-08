@@ -8,6 +8,7 @@ import {
   PROTOCOL_VERSION,
   parseUiToMainMessage,
   type ArchiveEntryAccepted,
+  type ExportComponentScope,
   type ExportFailed,
   type ExportId,
   type ExportProducerMessage,
@@ -298,6 +299,7 @@ function startExport(
   snapshotId: string,
   requestId: string,
   scope: ExportScope,
+  componentScope?: ExportComponentScope,
 ): void {
   const exportId = nextExportId();
   if (pluginClosing) {
@@ -324,6 +326,9 @@ function startExport(
     requestId,
     snapshotId,
     cancellation,
+    ...(scope === "current-selection" && componentScope !== undefined
+      ? { componentScope }
+      : {}),
     postMessage: (message) => delivery.post(message),
   })
     .then(() => {
@@ -387,7 +392,12 @@ figma.ui.onmessage = (rawMessage: unknown): void => {
       });
       break;
     case "start-export":
-      startExport(message.snapshotId, message.requestId, message.scope);
+      startExport(
+        message.snapshotId,
+        message.requestId,
+        message.scope,
+        message.componentScope,
+      );
       break;
     case "cancel-export":
       if (activeExport?.exportId === message.exportId) {

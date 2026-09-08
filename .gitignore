@@ -34,3 +34,5 @@ extracted/
 # Editor-local files
 .idea/
 .vscode/
+.claude/worktrees/
+.claude/settings.local.json

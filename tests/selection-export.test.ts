@@ -722,15 +722,12 @@ describe("Current-selection export orchestration", () => {
     expect(componentDefinition).toMatchObject({
       kind: "design-ir-component-definition",
       source: { id: "component:external" },
-      assets: [
-        {
-          assetKind: "vector",
-          node: { id: "node:component-child" },
-          mediaType: "image/svg+xml",
-          eligibility: "top-level-vector-root",
-          exportSettings: { format: "SVG_STRING" },
+      assets: [],
+      coverage: {
+        assets: {
+          status: "not-collected",
         },
-      ],
+      },
       normalizedTree: {
         family: "component",
         page: { id: "page:synthetic" },
@@ -744,6 +741,15 @@ describe("Current-selection export orchestration", () => {
         ],
       },
     });
+    expect(
+      (
+        componentDefinition.normalizedTree as {
+          readonly children: readonly {
+            readonly assetRefs: readonly unknown[];
+          }[];
+        }
+      ).children[0]?.assetRefs,
+    ).toEqual([]);
     const ready = posted.find((message) => message.type === "export-ready");
     const artifactPaths = new Set(
       ready?.artifacts?.map((artifact) => artifact.path),
@@ -755,29 +761,29 @@ describe("Current-selection export orchestration", () => {
       "selection-export/ir/components/definitions/component%3Aexternal.json",
       "selection-export/raw/rest-v1/components/component%3Aexternal.json",
       "selection-export/assets/raster/431ced6916a2a21a156e38701afe55bbd7f88969fbbfc56d7fe099d47f265460.png",
-      "selection-export/assets/vector/node%3Acomponent-child.svg",
     ]) {
       expect(artifactPaths).toContain(path);
     }
 
+    // Binary assets come from the selected roots only: the vector child of
+    // the component definition is never exported, and no unavailable vector
+    // requirement is recorded for it either.
+    expect(
+      [...artifactPaths].filter((path) => path.includes("/assets/vector/")),
+    ).toEqual([]);
+    const vectorEntries = posted.filter((message) =>
+      message.path?.includes("/assets/vector/"),
+    );
+    expect(vectorEntries).toEqual([]);
+
     const rasterEntry = posted.find((message) =>
       message.path?.includes("/assets/raster/"),
-    );
-    const vectorEntry = posted.find((message) =>
-      message.path?.includes("/assets/vector/"),
     );
     expect(rasterEntry).toMatchObject({
       mediaType: "image/png",
       compression: "store",
       data: SYNTHETIC_PNG,
     });
-    expect(vectorEntry).toMatchObject({
-      mediaType: "image/svg+xml",
-      compression: "deflate",
-    });
-    expect(vectorEntry?.data).toBe(
-      '<svg viewBox="0 0 8 8"><path d="M0 0L8 8Z"/></svg>\n',
-    );
     expect(JSON.stringify(root)).not.toContain("base64");
 
     expect((pageNode.children as unknown[])[0]).toBe(rootNode);

@@ -1739,7 +1739,6 @@ ${markdownList(
 
 - Capabilities: ${document.capabilities.map((capability) => escapeMarkdown(capability)).join(", ") || "none"}
 - Limitations: ${document.limitations.map((limitation) => escapeMarkdown(boundedText(limitation, 512))).join("; ") || "none"}
-- Document diagnostic IDs: ${document.diagnosticIds.map((id) => escapeMarkdown(id)).join(", ") || "none"}
 - ${link(indexPath, archivePaths.diagnostics(snapshotId), "Open the complete diagnostic list")}`
     ];
     const componentBlocks = [
@@ -4015,6 +4014,7 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
   }
   async function collectComponents(options) {
     const diagnosticStart = options.diagnostics.size();
+    const usedScope = options.componentScope === "used";
     const state = { complete: true };
     const definitions = /* @__PURE__ */ new Map();
     const definitionNodesById = /* @__PURE__ */ new Map();
@@ -4029,7 +4029,8 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
     const preferredEdges = [];
     const exposedInstanceIdsByOwner = /* @__PURE__ */ new Map();
     const traversalQueue = options.roots.map((node) => ({
-      node
+      node,
+      selectionContent: true
     }));
     let traversalCursor = 0;
     const visitedContexts = /* @__PURE__ */ new Set();
@@ -4128,13 +4129,17 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
         }
         queuedResolvedDefinitionIds.add(id);
       }
-      traversalQueue.push({ node });
+      traversalQueue.push({ node, selectionContent: false });
     };
     const enqueueMainComponent = (node) => {
       const id = nodeId(node);
       if (id !== void 0 && options.session?.definitionById(id) !== void 0) {
         reusedDefinitionTraversals += 1;
         reportReuseBoundary();
+        return;
+      }
+      if (usedScope) {
+        enqueueDefinitionNode(node);
         return;
       }
       const parentRead = readProperty(node, "parent", options.diagnostics, state);
@@ -4210,6 +4215,9 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
           });
           continue;
         }
+        if (usedScope && nodeType(resolved, options.diagnostics, state) === "COMPONENT_SET") {
+          continue;
+        }
         enqueueMainComponent(resolved);
         continue;
       }
@@ -4223,6 +4231,12 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
         continue;
       }
       visitedContexts.add(context);
+      if (usedScope && !item.selectionContent) {
+        const visitedType = nodeType(item.node, options.diagnostics, state);
+        if (visitedType === "COMPONENT_SET") {
+          continue;
+        }
+      }
       traversedNodeCount += 1;
       if (traversedNodeCount % 50 === 0) {
         reportProgress("traversal");
@@ -4273,7 +4287,9 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
               );
               definitionsOwner = parent.value;
               canReadOwnDefinitions = false;
-              enqueueDefinitionNode(parent.value);
+              if (!usedScope) {
+                enqueueDefinitionNode(parent.value);
+              }
             } else {
               canReadOwnDefinitions = true;
             }
@@ -4543,7 +4559,8 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
       for (const child of nodeChildren ?? []) {
         traversalQueue.push({
           node: child,
-          ...childOwner === void 0 ? {} : { ownerComponent: childOwner }
+          ...childOwner === void 0 ? {} : { ownerComponent: childOwner },
+          selectionContent: item.selectionContent
         });
       }
     }
@@ -8424,7 +8441,7 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
   var exportSelectedRootPreview = exportNodePreview;
 
   // src/main/export-entire-file.ts
-  var EXPORTER_PACKAGE_VERSION = "0.1.0";
+  var EXPORTER_PACKAGE_VERSION = "0.2.0";
   function elapsedMs(start, now) {
     const elapsed = now() - start;
     return Number.isFinite(elapsed) ? Math.max(0, Math.round(elapsed)) : 0;
@@ -10270,7 +10287,7 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
   }
 
   // src/main/export-selection.ts
-  var EXPORTER_PACKAGE_VERSION2 = "0.1.0";
+  var EXPORTER_PACKAGE_VERSION2 = "0.2.0";
   function directStyleReferences2(node) {
     const references = [];
     for (const reference of [
@@ -10572,7 +10589,7 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
       return { diagnosticId: diagnostic.id };
     }
   }
-  async function collectComponentDefinitionArtifacts(components, snapshotId, diagnostics, requirements, assets, options) {
+  async function collectComponentDefinitionArtifacts(components, snapshotId, diagnostics, requirements, options) {
     const results = [];
     const componentSummaryIds = new Set(
       components.index.definitions.filter(
@@ -10598,10 +10615,6 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
         "asset",
         results.length,
         components.index.definitions.length
-      );
-      const collectedAssets = await assets.collectTree(
-        collected.tree,
-        collected.nodesById
       );
       const raw = await exportRawComponent(
         node,
@@ -10630,13 +10643,12 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
       }
       const diagnosticIds = [
         .../* @__PURE__ */ new Set([
-          ...diagnostics.listSince(diagnosticStart).map((diagnostic) => diagnostic.id),
-          ...collectedAssets.diagnosticIds
+          ...diagnostics.listSince(diagnosticStart).map((diagnostic) => diagnostic.id)
         ])
       ];
       const rawArtifact = "artifact" in raw ? raw.artifact : void 0;
       const normalizedTree = withRootMetadata2(
-        collectedAssets.tree,
+        collected.tree,
         rawArtifact,
         diagnosticIds
       );
@@ -10647,7 +10659,7 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
         dependencyRefs: collected.dependencyRefs,
         normalizedTree,
         reactions: collected.reactions,
-        assets: collectedAssets.assets,
+        assets: [],
         coverage: {
           dependencies: collected.coverage.dependencyRefsComplete ? { status: "collected" } : {
             status: "partial",
@@ -10657,9 +10669,9 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
             status: "partial",
             reason: "Some reactions were inaccessible while collecting the reachable component definition."
           },
-          assets: collectedAssets.complete ? { status: "collected" } : {
-            status: "partial",
-            reason: "One or more reachable raster or standalone vector assets could not be exported."
+          assets: {
+            status: "not-collected",
+            reason: "Binary assets are exported only for selected roots; component trees keep exact vector geometry and text values instead."
           },
           textSegments: collected.coverage.textSegmentsComplete ? { status: "collected" } : {
             status: "partial",
@@ -10711,9 +10723,9 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
         componentId: definition.source.id,
         artifactRef: { path, mediaType: "application/json" },
         dependencyRefs: collected.dependencyRefs,
-        styleUsage: styleUsageFromTree(collectedAssets.tree),
+        styleUsage: styleUsageFromTree(collected.tree),
         diagnosticIds,
-        complete: collected.coverage.dependencyRefsComplete && collected.coverage.interactionsComplete && collected.coverage.textSegmentsComplete && collectedAssets.complete
+        complete: collected.coverage.dependencyRefsComplete && collected.coverage.interactionsComplete && collected.coverage.textSegmentsComplete
       });
       await yieldToFigma();
       options.cancellation.throwIfCancelled();
@@ -10931,9 +10943,9 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
       limitations: [
         "Selection roots use deterministic document/canvas order because Plugin API selection order is unspecified.",
         "The installed @figma/plugin-typings@1.133.0 surface exposes annotations but no accessibility or ARIA node properties.",
-        "Component counts and per-definition IR cover selected and reachable accessible definitions; exact file-wide local component counts require an Entire file export.",
+        "Component counts and per-definition IR cover only definitions instantiated by the selected roots (including nested instances and swap targets); sibling variants and owning component sets are not exported, and exact file-wide local component counts require an Entire file export.",
         "Inaccessible referenced definitions remain unresolved with diagnostics and are never imported.",
-        "Raster bytes are limited to image fills reachable through accessible selected roots, component definitions, and paint styles.",
+        "Raster and standalone-SVG bytes are exported only for image fills and vector nodes reachable through the selected roots; raster bytes referenced exclusively by component definitions or paint styles are omitted.",
         `Raw, raster, SVG, and preview artifacts that fail are absent only with source-attributed diagnostics under ${snapshotId}.`
       ],
       diagnosticIds: diagnostics.list().map((diagnostic) => diagnostic.id)
@@ -10997,14 +11009,14 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
         }
       },
       diagnostics,
-      cancellation: options.cancellation
+      cancellation: options.cancellation,
+      componentScope: "used"
     });
     const componentDefinitionResults = await collectComponentDefinitionArtifacts(
       collectedComponents,
       snapshotId,
       diagnostics,
       requirements,
-      assetSession,
       options
     );
     const definitionArtifactById = new Map(
@@ -11092,13 +11104,7 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
       cancellation: options.cancellation
     });
     postProgress2(options, "asset", roots.length + 1, roots.length + 2, "Styles");
-    const collectedStyleAssets = await assetSession.collectStyles(
-      collectedStyles.artifact
-    );
-    const styles = {
-      ...collectedStyles,
-      artifact: collectedStyleAssets.artifact
-    };
+    const styles = collectedStyles;
     postProgress2(
       options,
       "collection",

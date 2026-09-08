@@ -61,6 +61,11 @@ reload the plugin in Figma Desktop.
 - The archive reflects only data available through the public Figma Plugin API;
   it is not a lossless `.fig` backup. Missing library resources are diagnosed,
   not imported.
+- A current-selection export includes component definitions instantiated by
+  the selected roots (including nested instances and swap targets); sibling
+  variants and owning component sets are not exported. Binary assets come from
+  the selected roots only. Use an Entire file export for full file-local
+  component coverage.
 - Limits are 64 MiB per uncompressed entry, 384 MiB retained ZIP output, 65,535
   ZIP entries, and 1 MiB per generated Markdown file. Archive-wide capacity
   failures stop without requesting a partial save.

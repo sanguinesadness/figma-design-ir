@@ -333,11 +333,15 @@ function isManifestScope(
 ): value is ArchiveManifestDraft["scope"] {
   return (
     isRecord(value) &&
-    hasExactKeys(value, ["kind", "orderedRootIds"]) &&
+    hasExactKeys(value, ["kind", "orderedRootIds"], ["componentScope"]) &&
     isExportScope(value.kind) &&
     isStringArray(value.orderedRootIds) &&
     value.orderedRootIds.every((rootId) => rootId.length > 0) &&
-    new Set(value.orderedRootIds).size === value.orderedRootIds.length
+    new Set(value.orderedRootIds).size === value.orderedRootIds.length &&
+    (value.componentScope === undefined ||
+      value.componentScope === "used" ||
+      value.componentScope === "reachable") &&
+    (value.kind !== "entire-file" || value.componentScope === undefined)
   );
 }
 

@@ -124,6 +124,7 @@ function createFixture(options?: {
   readonly variablesArtifactPathOverride?: string;
   readonly componentDefinitionArtifactPathOverride?: string;
   readonly omitComponentDefinitionIndexEntry?: boolean;
+  readonly metadataOnlyComponentDefinition?: boolean;
   readonly previewReferenceHashOverride?: string;
 }): SyntheticArchiveFixture {
   const snapshotId = requireSnapshotId(
@@ -272,6 +273,33 @@ function createFixture(options?: {
                   mediaType: "application/json",
                 },
               },
+              ...(options?.metadataOnlyComponentDefinition
+                ? [
+                    {
+                      componentKind: "component-set",
+                      source: {
+                        kind: "component",
+                        id: "component:metadata-set",
+                      },
+                      nodeId: "component:metadata-set",
+                      variantAxes: [
+                        { name: "State", values: ["Idle", "Hover"] },
+                      ],
+                      propertyDefinitions: [
+                        {
+                          id: "State",
+                          name: "State",
+                          propertyType: "VARIANT",
+                          defaultValue: "Idle",
+                          variantOptions: ["Idle", "Hover"],
+                          preferredValues: [],
+                          variableBindings: [],
+                        },
+                      ],
+                      diagnosticIds: [],
+                    },
+                  ]
+                : []),
             ],
         dependencies: [],
       }),
@@ -814,6 +842,31 @@ describe("streaming current-selection archive assembly", () => {
         independentNodeSha256(unpacked),
       );
     }
+  });
+
+  it("accepts metadata-only component definitions without definition artifacts", async () => {
+    const fixture = createFixture({
+      snapshotId: "archive-metadata-only",
+      metadataOnlyComponentDefinition: true,
+    });
+    const completed = await finalizeFixture(fixture, createRuntime());
+    const definitionArtifacts = completed.manifest.entries.map(
+      (entry) => entry.path,
+    );
+    // The metadata-only record carries no artifact requirement, while the
+    // artifact-bearing definition stays mandatory.
+    expect(definitionArtifacts).not.toContain(
+      archivePaths.irComponentDefinition(
+        fixture.snapshotId,
+        "component:metadata-set",
+      ),
+    );
+    expect(definitionArtifacts).toContain(
+      archivePaths.irComponentDefinition(
+        fixture.snapshotId,
+        "component:synthetic/α",
+      ),
+    );
   });
 
   it("produces deterministic bytes, order, compression, and fixed ZIP time across normalized completion timing", async () => {

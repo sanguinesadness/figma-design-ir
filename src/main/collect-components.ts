@@ -46,8 +46,9 @@ export interface CollectComponentsOptions {
    * "reachable" (default) expands every component set that a used variant
    * belongs to, so each sibling variant becomes a definition. "used" keeps
    * only definitions instantiated by selection content (plus transitive
-   * instance/swap targets); sibling variants of their sets are never
-   * traversed and the sets themselves stay out of the index.
+   * instance/swap targets and reachable CHANGE_TO destinations); sibling
+   * variants are never traversed, and their owning sets are recorded as
+   * metadata-only definitions without expanding their variant subtrees.
    */
   readonly componentScope?: "reachable" | "used";
   readonly onProgress?: (progress: ComponentCollectionProgress) => void;
@@ -1105,6 +1106,7 @@ export async function collectComponents(
       return id === undefined ? [] : [id];
     }),
   );
+  const pendingInteractionIds = new Set<string>();
 
   const reportProgress = (
     stage: ComponentCollectionProgress["stage"],
@@ -1214,7 +1216,8 @@ export async function collectComponents(
     }
     if (usedScope) {
       // Used scope follows the instantiated variant only: the owning set and
-      // its sibling variants are not exported and must not be traversed.
+      // its sibling variants are not traversed unless a CHANGE_TO destination
+      // names them.
       enqueueDefinitionNode(node);
       return;
     }
@@ -1231,7 +1234,221 @@ export async function collectComponents(
     enqueueDefinitionNode(node);
   };
 
-  while (traversalCursor < traversalQueue.length || pendingIds.size > 0) {
+  const readDefaultVariantId = (setNode: SceneNode): string | undefined => {
+    const defaultVariant = readProperty(
+      setNode,
+      "defaultVariant",
+      options.diagnostics,
+      state,
+    );
+    if (
+      defaultVariant.present === true &&
+      typeof defaultVariant.value === "object" &&
+      defaultVariant.value !== null
+    ) {
+      try {
+        const value = (defaultVariant.value as Record<string, unknown>).id;
+        if (typeof value === "string") {
+          return value;
+        }
+        invalidShapeDiagnostic(
+          setNode,
+          "$.defaultVariant.id",
+          options.diagnostics,
+          state,
+        );
+      } catch (error) {
+        state.complete = false;
+        options.diagnostics.add({
+          code: DIAGNOSTIC_CODES.collectionPropertyAccessFailed,
+          severity: "warning",
+          message: "The default component variant could not be read.",
+          phase: "collection",
+          source: basicNodeSource(setNode),
+          propertyPath: "$.defaultVariant.id",
+          causedDataLoss: true,
+          technicalCause: normalizeSafeTechnicalCause(error, "property-access"),
+        });
+      }
+    }
+    return undefined;
+  };
+
+  const buildSetDefinition = (
+    setNode: SceneNode,
+    source: SourceRef & { readonly kind: "component" },
+    variants: ComponentDefinitionIR["variantProperties"],
+    diagnosticStart: number,
+  ): ComponentDefinitionIR => {
+    const setPropertyMetadata = cachedDefinitions(setNode);
+    const description = readProperty(
+      setNode,
+      "description",
+      options.diagnostics,
+      state,
+    );
+    const markdown = readProperty(
+      setNode,
+      "descriptionMarkdown",
+      options.diagnostics,
+      state,
+    );
+    const defaultVariantId = readDefaultVariantId(setNode);
+    const links = documentationLinks(setNode, options.diagnostics, state);
+    return {
+      componentKind: "component-set",
+      source,
+      nodeId: source.id,
+      ...(defaultVariantId === undefined ? {} : { defaultVariantId }),
+      ...(setPropertyMetadata.available
+        ? {
+            variantAxes: setPropertyMetadata.variantAxes,
+            propertyDefinitions: setPropertyMetadata.definitions,
+          }
+        : {}),
+      ...(variants === undefined ? {} : { variantProperties: variants }),
+      ...(links === undefined ? {} : { documentationLinks: links }),
+      ...(description.ok && typeof description.value === "string"
+        ? { description: description.value }
+        : {}),
+      ...(markdown.ok && typeof markdown.value === "string"
+        ? { descriptionMarkdown: markdown.value }
+        : {}),
+      diagnosticIds: options.diagnostics
+        .listSince(diagnosticStart)
+        .map((diagnostic) => diagnostic.id),
+    };
+  };
+
+  const buildComponentDefinition = (
+    node: SceneNode,
+    source: SourceRef & { readonly kind: "component" },
+    owningSet: (SourceRef & { readonly kind: "component" }) | undefined,
+    propertyMetadata: PropertyDefinitionResult,
+    variants: ComponentDefinitionIR["variantProperties"],
+    diagnosticStart: number,
+  ): ComponentDefinitionIR => {
+    const description = readProperty(
+      node,
+      "description",
+      options.diagnostics,
+      state,
+    );
+    const markdown = readProperty(
+      node,
+      "descriptionMarkdown",
+      options.diagnostics,
+      state,
+    );
+    const links = documentationLinks(node, options.diagnostics, state);
+    return {
+      componentKind: "component",
+      source,
+      nodeId: source.id,
+      ...(owningSet === undefined ? {} : { componentSetId: owningSet.id }),
+      ...(propertyMetadata.available
+        ? {
+            variantAxes: [],
+            propertyDefinitions:
+              owningSet === undefined ? propertyMetadata.definitions : [],
+          }
+        : {}),
+      ...(variants === undefined ? {} : { variantProperties: variants }),
+      ...(links === undefined ? {} : { documentationLinks: links }),
+      ...(description.ok && typeof description.value === "string"
+        ? { description: description.value }
+        : {}),
+      ...(markdown.ok && typeof markdown.value === "string"
+        ? { descriptionMarkdown: markdown.value }
+        : {}),
+      diagnosticIds: options.diagnostics
+        .listSince(diagnosticStart)
+        .map((diagnostic) => diagnostic.id),
+    };
+  };
+
+  // Used scope keeps a set out of the traversal queue, but its property
+  // definitions and variant axes own the ids referenced by exported
+  // variants, so the set's own metadata record is registered without
+  // expanding its variant subtree. The record is deliberately not added to
+  // definitionNodesById: no definition artifact, raw fallback, or markdown
+  // page is produced for it.
+  const registerSetMetadata = (
+    setNode: SceneNode,
+    setSource: SourceRef & { readonly kind: "component" },
+  ): void => {
+    if (
+      definitions.has(setSource.id) ||
+      options.session?.definitionById(setSource.id) !== undefined
+    ) {
+      return;
+    }
+    const setDiagnosticStart = options.diagnostics.size();
+    definitionsDiscovered += 1;
+    definitions.set(
+      setSource.id,
+      buildSetDefinition(
+        setNode,
+        setSource,
+        variantProperties(setNode, options.diagnostics, state),
+        setDiagnosticStart,
+      ),
+    );
+  };
+
+  // Used scope must preserve the interactive behavior of exported
+  // components: CHANGE_TO destinations name sibling variants that the
+  // reduced traversal would otherwise drop from the archive.
+  const queueInteractionDestinations = (node: SceneNode): void => {
+    if (!usedScope) {
+      return;
+    }
+    const read = readProperty(node, "reactions", options.diagnostics, state);
+    if (!read.ok || !Array.isArray(read.value)) {
+      return;
+    }
+    for (const reaction of read.value) {
+      if (typeof reaction !== "object" || reaction === null) {
+        continue;
+      }
+      const record = reaction as Record<string, unknown>;
+      const actions = Array.isArray(record.actions)
+        ? record.actions
+        : record.action === undefined
+          ? []
+          : [record.action];
+      for (const action of actions) {
+        if (typeof action !== "object" || action === null) {
+          continue;
+        }
+        const actionRecord = action as Record<string, unknown>;
+        if (
+          actionRecord.type !== "NODE" ||
+          actionRecord.navigation !== "CHANGE_TO" ||
+          typeof actionRecord.destinationId !== "string" ||
+          actionRecord.destinationId.length === 0
+        ) {
+          continue;
+        }
+        const destinationId = actionRecord.destinationId;
+        if (
+          definitions.has(destinationId) ||
+          queuedResolvedDefinitionIds.has(destinationId) ||
+          pendingInteractionIds.has(destinationId) ||
+          options.session?.definitionById(destinationId) !== undefined
+        ) {
+          continue;
+        }
+        pendingInteractionIds.add(destinationId);
+      }
+    }
+  };
+
+  while (
+    traversalCursor < traversalQueue.length ||
+    pendingIds.size > 0 ||
+    pendingInteractionIds.size > 0
+  ) {
     options.cancellation.throwIfCancelled();
     const item = traversalQueue[traversalCursor];
     if (item !== undefined) {
@@ -1245,6 +1462,43 @@ export async function collectComponents(
       }
     }
     if (item === undefined) {
+      if (pendingInteractionIds.size > 0) {
+        const destinationId = pendingInteractionIds.values().next()
+          .value as string;
+        pendingInteractionIds.delete(destinationId);
+        if (
+          definitions.has(destinationId) ||
+          options.session?.definitionById(destinationId) !== undefined
+        ) {
+          continue;
+        }
+        let resolvedDestination: SceneNode | null;
+        idLookupsStarted += 1;
+        reportLookupBoundary("id-lookup", idLookupsStarted);
+        try {
+          options.cancellation.throwIfCancelled();
+          resolvedDestination =
+            await options.adapter.getNodeByIdAsync(destinationId);
+          options.cancellation.throwIfCancelled();
+          idLookupsCompleted += 1;
+          reportLookupBoundary("id-lookup", idLookupsCompleted);
+        } catch {
+          options.cancellation.throwIfCancelled();
+          idLookupsCompleted += 1;
+          reportLookupBoundary("id-lookup", idLookupsCompleted);
+          // A dangling CHANGE_TO destination keeps its recorded reference in
+          // the owning reaction; the scoping itself is not data loss.
+          continue;
+        }
+        if (
+          resolvedDestination !== null &&
+          nodeType(resolvedDestination, options.diagnostics, state) ===
+            "COMPONENT"
+        ) {
+          enqueueMainComponent(resolvedDestination);
+        }
+        continue;
+      }
       const requestEntry = pendingIds.entries().next().value as
         | [
             string,
@@ -1401,7 +1655,11 @@ export async function collectComponents(
             );
             definitionsOwner = parent.value as SceneNode;
             canReadOwnDefinitions = false;
-            if (!usedScope) {
+            if (usedScope) {
+              if (owningSet !== undefined) {
+                registerSetMetadata(parent.value as SceneNode, owningSet);
+              }
+            } else {
               enqueueDefinitionNode(parent.value as SceneNode);
             }
           } else {
@@ -1430,98 +1688,22 @@ export async function collectComponents(
           options.diagnostics,
           state,
         );
-        const description = readProperty(
-          item.node,
-          "description",
-          options.diagnostics,
-          state,
-        );
-        const markdown = readProperty(
-          item.node,
-          "descriptionMarkdown",
-          options.diagnostics,
-          state,
-        );
-        const defaultVariant =
+        const definition =
           type === "COMPONENT_SET"
-            ? readProperty(
+            ? buildSetDefinition(
                 item.node,
-                "defaultVariant",
-                options.diagnostics,
-                state,
+                source,
+                variants,
+                definitionDiagnosticStart,
               )
-            : undefined;
-        let defaultVariantId: string | undefined;
-        if (
-          defaultVariant?.present === true &&
-          typeof defaultVariant.value === "object" &&
-          defaultVariant.value !== null
-        ) {
-          try {
-            const value = (defaultVariant.value as Record<string, unknown>).id;
-            if (typeof value === "string") {
-              defaultVariantId = value;
-            } else {
-              invalidShapeDiagnostic(
+            : buildComponentDefinition(
                 item.node,
-                "$.defaultVariant.id",
-                options.diagnostics,
-                state,
+                source,
+                owningSet,
+                propertyMetadata,
+                variants,
+                definitionDiagnosticStart,
               );
-            }
-          } catch (error) {
-            state.complete = false;
-            options.diagnostics.add({
-              code: DIAGNOSTIC_CODES.collectionPropertyAccessFailed,
-              severity: "warning",
-              message: "The default component variant could not be read.",
-              phase: "collection",
-              source: basicNodeSource(item.node),
-              propertyPath: "$.defaultVariant.id",
-              causedDataLoss: true,
-              technicalCause: normalizeSafeTechnicalCause(
-                error,
-                "property-access",
-              ),
-            });
-          }
-        }
-        const definition: ComponentDefinitionIR = {
-          componentKind:
-            type === "COMPONENT_SET" ? "component-set" : "component",
-          source,
-          nodeId: source.id,
-          ...(owningSet === undefined ? {} : { componentSetId: owningSet.id }),
-          ...(defaultVariantId === undefined ? {} : { defaultVariantId }),
-          ...(propertyMetadata.available
-            ? {
-                variantAxes:
-                  type === "COMPONENT_SET" ? propertyMetadata.variantAxes : [],
-                propertyDefinitions:
-                  type === "COMPONENT_SET" || owningSet === undefined
-                    ? propertyMetadata.definitions
-                    : [],
-              }
-            : {}),
-          ...(variants === undefined ? {} : { variantProperties: variants }),
-          ...(() => {
-            const links = documentationLinks(
-              item.node,
-              options.diagnostics,
-              state,
-            );
-            return links === undefined ? {} : { documentationLinks: links };
-          })(),
-          ...(description.ok && typeof description.value === "string"
-            ? { description: description.value }
-            : {}),
-          ...(markdown.ok && typeof markdown.value === "string"
-            ? { descriptionMarkdown: markdown.value }
-            : {}),
-          diagnosticIds: options.diagnostics
-            .listSince(definitionDiagnosticStart)
-            .map((diagnostic) => diagnostic.id),
-        };
         if (!definitions.has(source.id)) {
           definitionsDiscovered += 1;
         }
@@ -1711,6 +1893,8 @@ export async function collectComponents(
         );
       }
     }
+
+    queueInteractionDestinations(item.node);
 
     const nodeChildren = children(item.node, options.diagnostics, state);
     for (const child of nodeChildren ?? []) {

@@ -4,7 +4,13 @@ import vm from "node:vm";
 import { build } from "esbuild";
 import { describe, expect, it, vi } from "vitest";
 
+import {
+  createBrowserArchiveRuntime,
+  ExportSessionController,
+} from "../src/ui/export-session";
+import type { CompletedArchive } from "../src/shared/archive-builder";
 import { DIAGNOSTIC_CODES } from "../src/shared/diagnostics";
+import type { ArchiveEntryMessage, ExportReady } from "../src/shared/protocol";
 import { PROTOCOL_VERSION } from "../src/shared/protocol";
 
 const SYNTHETIC_TEXT = "Пример 中文 e\u0301 🚀 “quoted” —";
@@ -31,6 +37,13 @@ interface PostedMessage {
     readonly path: string;
     readonly status?: "emitted" | "unavailable";
   }[];
+  readonly manifestDraft?: {
+    readonly scope: {
+      readonly kind: string;
+      readonly componentScope?: "used" | "reachable";
+    };
+    readonly completeness: string;
+  };
 }
 
 interface SelectionRecoveryRuntime {
@@ -664,6 +677,7 @@ describe("Current-selection export orchestration", () => {
       ]),
     );
     expect(document).toMatchObject({
+      componentScope: "used",
       counts: {
         localVariables: {
           status: "collected",
@@ -1176,5 +1190,498 @@ describe("Current-selection export orchestration", () => {
         limitation.includes("reachable accessible definitions"),
       ),
     ).toBe(true);
+    expect(document.componentScope).toBe("reachable");
+  });
+
+  it("keeps used-scope archives self-contained for variant instances outside their set", async () => {
+    const documentNode: Record<string, unknown> = {
+      id: "document:synthetic",
+      name: "Invented Used Document",
+      type: "DOCUMENT",
+      parent: null,
+      children: [] as unknown[],
+    };
+    const pageNode: Record<string, unknown> = {
+      id: "page:synthetic",
+      name: "Invented Used Page",
+      type: "PAGE",
+      parent: documentNode,
+      children: [] as unknown[],
+      selection: [] as unknown[],
+    };
+    const set: Record<string, unknown> = {
+      id: "component:badge-set",
+      name: "Invented Badge Set",
+      type: "COMPONENT_SET",
+      key: "key:badge-set",
+      remote: false,
+      parent: pageNode,
+      variantProperties: null,
+      componentPropertyDefinitions: {
+        State: {
+          type: "VARIANT",
+          defaultValue: "Idle",
+          variantOptions: ["Idle", "Hover", "Spare"],
+        },
+        "Icon#opaque:2": {
+          type: "BOOLEAN",
+          defaultValue: true,
+        },
+        "Label#opaque:1": {
+          type: "TEXT",
+          defaultValue: "Invented label",
+        },
+      },
+      componentPropertyReferences: null,
+      documentationLinks: [],
+      description: "",
+      descriptionMarkdown: "",
+      children: [] as unknown[],
+    };
+    const idleImage: Record<string, unknown> = {
+      id: "node:idle-image",
+      name: "Invented Idle Image",
+      type: "RECTANGLE",
+      visible: true,
+      locked: false,
+      parent: null,
+      fills: [
+        {
+          type: "IMAGE",
+          imageHash: "image:component-media",
+          scaleMode: "FILL",
+          visible: true,
+          opacity: 1,
+        },
+      ],
+    };
+    const idleVariant: Record<string, unknown> = {
+      id: "component:idle",
+      name: "State=Idle",
+      type: "COMPONENT",
+      key: "key:idle",
+      remote: false,
+      parent: set,
+      variantProperties: { State: "Idle" },
+      componentPropertyDefinitions: {},
+      componentPropertyReferences: null,
+      documentationLinks: [],
+      description: "",
+      descriptionMarkdown: "",
+      children: [idleImage],
+      reactions: [
+        {
+          trigger: { type: "ON_HOVER" },
+          actions: [
+            {
+              type: "NODE",
+              navigation: "CHANGE_TO",
+              destinationId: "component:hover",
+              transition: null,
+            },
+          ],
+        },
+      ],
+      exportAsync: vi.fn((settings: { readonly format: string }) =>
+        Promise.resolve(
+          settings.format === "JSON_REST_V1" ? { id: "component:idle" } : {},
+        ),
+      ),
+    };
+    idleImage.parent = idleVariant;
+    const hoverVariant: Record<string, unknown> = {
+      id: "component:hover",
+      name: "State=Hover",
+      type: "COMPONENT",
+      key: "key:hover",
+      remote: false,
+      parent: set,
+      variantProperties: { State: "Hover" },
+      componentPropertyDefinitions: {},
+      componentPropertyReferences: null,
+      documentationLinks: [],
+      description: "",
+      descriptionMarkdown: "",
+      children: [],
+      exportAsync: vi.fn((settings: { readonly format: string }) =>
+        Promise.resolve(
+          settings.format === "JSON_REST_V1" ? { id: "component:hover" } : {},
+        ),
+      ),
+    };
+    const spareVariant: Record<string, unknown> = {
+      id: "component:spare",
+      name: "State=Spare",
+      type: "COMPONENT",
+      key: "key:spare",
+      remote: false,
+      parent: set,
+      variantProperties: { State: "Spare" },
+      componentPropertyDefinitions: {},
+      componentPropertyReferences: null,
+      documentationLinks: [],
+      description: "Invented spare variant that must stay unexported.",
+      descriptionMarkdown: "",
+      children: [],
+    };
+    (set.children as unknown[]).push(idleVariant, hoverVariant, spareVariant);
+    const instanceImage: Record<string, unknown> = {
+      id: "node:instance-image",
+      name: "Invented Instance Image",
+      type: "RECTANGLE",
+      visible: true,
+      locked: false,
+      parent: null,
+      // The instance redefines the inherited IMAGE fill as a SOLID paint.
+      fills: [
+        {
+          type: "SOLID",
+          visible: true,
+          opacity: 1,
+          color: { r: 0.2, g: 0.3, b: 0.4 },
+        },
+      ],
+      exportAsync: vi.fn(() =>
+        Promise.resolve('<svg viewBox="0 0 8 8"><path d="M0 0L8 8Z"/></svg>'),
+      ),
+    };
+    const selectedInstance: Record<string, unknown> = {
+      id: "instance:selected",
+      name: "Invented Idle Instance",
+      type: "INSTANCE",
+      visible: true,
+      locked: false,
+      parent: null,
+      componentProperties: {},
+      componentPropertyReferences: null,
+      overrides: [{ id: "node:idle-image", overriddenFields: ["fills"] }],
+      exposedInstances: [],
+      scaleFactor: 1,
+      getMainComponentAsync: () => Promise.resolve(idleVariant),
+      children: [instanceImage],
+    };
+    instanceImage.parent = selectedInstance;
+    const rootNode: Record<string, unknown> = {
+      id: "node:root",
+      name: "Invented Used Root",
+      type: "FRAME",
+      visible: true,
+      locked: false,
+      removed: false,
+      parent: pageNode,
+      children: [selectedInstance],
+      absoluteRenderBounds: { x: 0, y: 0, width: 40, height: 24 },
+      absoluteBoundingBox: { x: 0, y: 0, width: 40, height: 24 },
+      fills: [],
+      exportAsync: vi.fn((settings: { readonly format: string }) =>
+        Promise.resolve(
+          settings.format === "JSON_REST_V1"
+            ? { id: "node:root" }
+            : SYNTHETIC_PNG,
+        ),
+      ),
+    };
+    selectedInstance.parent = rootNode;
+    // The owning set and the unused siblings stay outside the selection.
+    (pageNode.children as unknown[]).push(rootNode, set);
+    (pageNode.selection as unknown[]).push(rootNode);
+    (documentNode.children as unknown[]).push(pageNode);
+
+    const posted: PostedMessage[] = [];
+    const previousFigma = Object.getOwnPropertyDescriptor(globalThis, "figma");
+    Object.defineProperty(globalThis, "figma", {
+      configurable: true,
+      writable: true,
+      value: {
+        closePlugin: () => {},
+        currentPage: pageNode,
+        editorType: "figma",
+        getLocalEffectStylesAsync: () => Promise.resolve([]),
+        getLocalGridStylesAsync: () => Promise.resolve([]),
+        getLocalPaintStylesAsync: () => Promise.resolve([]),
+        getLocalTextStylesAsync: () => Promise.resolve([]),
+        getImageByHash: () => ({
+          getBytesAsync: () => Promise.resolve(SYNTHETIC_PNG),
+        }),
+        getNodeByIdAsync: (id: string) =>
+          Promise.resolve(id === "component:hover" ? hoverVariant : null),
+        mixed: Symbol("invented-mixed"),
+        on: () => {},
+        pluginId: "1234567890",
+        root: documentNode,
+        showUI: () => {},
+        ui: { onmessage: undefined, postMessage: () => {} },
+        variables: {
+          getLocalVariableCollectionsAsync: () => Promise.resolve([]),
+          getLocalVariablesAsync: () => Promise.resolve([]),
+          getVariableByIdAsync: () => Promise.resolve(null),
+          getVariableCollectionByIdAsync: () => Promise.resolve(null),
+        },
+      },
+    });
+    try {
+      const selectionExportPath = fileURLToPath(
+        new URL("../src/main/export-selection.ts", import.meta.url),
+      );
+      const cancellationPath = fileURLToPath(
+        new URL("../src/main/cancellation.ts", import.meta.url),
+      );
+      const usedBundle = await build({
+        bundle: true,
+        stdin: {
+          contents: [
+            `export { runSelectionExport } from ${JSON.stringify(selectionExportPath)};`,
+            `export { ExportCancellationToken } from ${JSON.stringify(cancellationPath)};`,
+          ].join("\n"),
+          loader: "ts",
+          resolveDir: fileURLToPath(new URL("..", import.meta.url)),
+        },
+        format: "esm",
+        platform: "node",
+        target: "es2022",
+        write: false,
+      });
+      const usedSource = usedBundle.outputFiles?.[0]?.text;
+      if (usedSource === undefined) {
+        throw new Error("The used-scope bundle was not produced.");
+      }
+      const usedRuntime = (await import(
+        `data:text/javascript;base64,${Buffer.from(usedSource).toString("base64")}`
+      )) as SelectionRecoveryRuntime;
+      await usedRuntime.runSelectionExport({
+        exportId: "export:selection-used",
+        requestId: "request:selection-used",
+        snapshotId: "selection-used",
+        cancellation: new usedRuntime.ExportCancellationToken(),
+        exportedAtUtc: "2026-08-15T00:00:00.000Z",
+        postMessage: (message) => {
+          posted.push(message);
+        },
+      });
+    } finally {
+      if (previousFigma === undefined) {
+        Reflect.deleteProperty(globalThis, "figma");
+      } else {
+        Object.defineProperty(globalThis, "figma", previousFigma);
+      }
+    }
+
+    expect(posted.some((message) => message.type === "export-failed")).toBe(
+      false,
+    );
+    const ready = posted.find((message) => message.type === "export-ready");
+    expect(ready).toBeDefined();
+    // The reduced used contract is machine-readable in the manifest.
+    expect(ready?.manifestDraft?.scope.componentScope).toBe("used");
+    expect(ready?.manifestDraft?.completeness).toBe("complete");
+
+    const document = requireJsonEntry(
+      posted,
+      "selection-used/ir/document.json",
+    );
+    expect(document.componentScope).toBe("used");
+    expect(
+      (document.limitations as readonly string[]).some((limitation) =>
+        limitation.includes("metadata-only definitions"),
+      ),
+    ).toBe(true);
+    expect(document.counts).toMatchObject({
+      localComponents: { status: "collected", value: 3 },
+    });
+
+    const components = requireJsonEntry(
+      posted,
+      "selection-used/ir/components.json",
+    );
+    const definitions = components.definitions as readonly {
+      source: { id: string };
+      componentKind: string;
+      componentSetId?: string;
+      propertyDefinitions?: readonly { id: string }[];
+      variantAxes?: readonly { name: string; values: readonly string[] }[];
+      definitionArtifact?: { path: string };
+    }[];
+    // The owning set contributes its metadata record; the instantiated Idle
+    // and the CHANGE_TO-reachable Hover follow; the unrelated Spare and any
+    // full set traversal stay out.
+    expect(definitions.map((definition) => definition.source.id)).toEqual([
+      "component:badge-set",
+      "component:hover",
+      "component:idle",
+    ]);
+    const setDefinition = definitions.find(
+      (definition) => definition.source.id === "component:badge-set",
+    );
+    const setPropertyIds = (setDefinition?.propertyDefinitions ?? []).map(
+      (definition) => definition.id,
+    );
+    expect(setPropertyIds).toEqual([
+      "Icon#opaque:2",
+      "Label#opaque:1",
+      "State",
+    ]);
+    expect(setDefinition?.variantAxes).toEqual([
+      { name: "State", values: ["Idle", "Hover", "Spare"] },
+    ]);
+    // The metadata-only set record never receives a definition artifact.
+    expect(setDefinition?.definitionArtifact).toBeUndefined();
+    const idleDefinition = definitions.find(
+      (definition) => definition.source.id === "component:idle",
+    );
+    expect(idleDefinition).toMatchObject({
+      componentKind: "component",
+      componentSetId: "component:badge-set",
+    });
+
+    const idleArtifact = requireJsonEntry(
+      posted,
+      "selection-used/ir/components/definitions/component%3Aidle.json",
+    );
+    const idleComponentData = ((
+      idleArtifact.normalizedTree as { componentData?: Record<string, unknown> }
+    ).componentData ?? {}) as { propertyDefinitionIds?: readonly string[] };
+    // Every propertyDefinitionId of the exported variant resolves in the
+    // canonical index through the metadata-only set record.
+    for (const propertyId of idleComponentData.propertyDefinitionIds ?? []) {
+      expect(setPropertyIds).toContain(propertyId);
+    }
+    expect(idleArtifact).toMatchObject({
+      source: { id: "component:idle" },
+      coverage: { assets: { status: "not-collected" } },
+      reactions: [
+        {
+          actions: [
+            {
+              actionType: "navigate",
+              navigation: "CHANGE_TO",
+              destination: { kind: "node", id: "component:hover" },
+            },
+          ],
+        },
+      ],
+    });
+    // The definition tree keeps the inherited IMAGE fill's hash; under the
+    // used contract the raster bytes stay out of the archive even though the
+    // instance itself redefines the fill as SOLID.
+    expect(idleArtifact).toMatchObject({
+      normalizedTree: {
+        children: [
+          {
+            visual: {
+              fills: [
+                { paintType: "IMAGE", imageHash: "image:component-media" },
+              ],
+            },
+          },
+        ],
+      },
+    });
+    expect(
+      posted.some(
+        (message) =>
+          message.type === "archive-entry" &&
+          message.path?.includes("/assets/raster/"),
+      ),
+    ).toBe(false);
+    const emittedPaths = new Set(
+      posted
+        .filter((message) => message.type === "archive-entry")
+        .map((message) => message.path),
+    );
+    expect(
+      emittedPaths.has(
+        "selection-used/ir/components/definitions/component%3Ahover.json",
+      ),
+    ).toBe(true);
+    expect(
+      emittedPaths.has(
+        "selection-used/ir/components/definitions/component%3Abadge-set.json",
+      ),
+    ).toBe(false);
+    expect(
+      emittedPaths.has(
+        "selection-used/ir/components/definitions/component%3Aspare.json",
+      ),
+    ).toBe(false);
+
+    const diagnosticsArtifact = requireJsonEntry(
+      posted,
+      "selection-used/diagnostics.json",
+    );
+    expect(diagnosticsArtifact.diagnostics).toEqual([]);
+
+    // Replay the exact produced message stream through the real UI archive
+    // assembly, pacing entries the way the protocol's in-flight acceptance
+    // requires: this is the path real Figma Desktop exports take, and the
+    // metadata-only set record must not break finalization.
+    const assembled: {
+      archive?: CompletedArchive;
+      failure?: string;
+    } = {};
+    let settleAssembly: (() => void) | undefined;
+    const settled = new Promise<void>((resolve) => {
+      settleAssembly = resolve;
+    });
+    let resolveAcceptance: (() => void) | undefined;
+    const session = new ExportSessionController(createBrowserArchiveRuntime(), {
+      onEntryAccepted: () => {
+        resolveAcceptance?.();
+      },
+      onArchiveFinalized: (archive) => {
+        assembled.archive = archive;
+        settleAssembly?.();
+      },
+      onArchiveAssemblyFailed: () => {
+        assembled.failure = "assembly-failed";
+        settleAssembly?.();
+      },
+      onCancelled: () => {
+        assembled.failure = "cancelled";
+        settleAssembly?.();
+      },
+      onFailed: (_exportId, code, archiveCode) => {
+        assembled.failure = `${code}${archiveCode === undefined ? "" : `:${archiveCode}`}`;
+        settleAssembly?.();
+      },
+    });
+    session.start("export:selection-used", "selection-used");
+    // code.ts stamps the wire sequence on outgoing archive entries before
+    // they reach the UI; mirror that here for the direct runtime stream.
+    const entryMessages = posted.flatMap((message) =>
+      message.type === "archive-entry" && message.exportId !== undefined
+        ? [message as typeof message & { sequence: number }]
+        : [],
+    );
+    let expectedSequence = 1;
+    for (const message of entryMessages) {
+      const sequenced = {
+        ...message,
+        sequence: expectedSequence,
+      } as unknown as ArchiveEntryMessage;
+      expectedSequence += 1;
+      const acceptance = new Promise<void>((resolve) => {
+        resolveAcceptance = resolve;
+      });
+      session.acceptEntry(sequenced);
+      await acceptance;
+    }
+    const readyMessage = posted.find(
+      (message) => message.type === "export-ready",
+    );
+    if (readyMessage === undefined) {
+      throw new Error("The used-scope export never became ready.");
+    }
+    session.acceptReady(readyMessage as unknown as ExportReady);
+    await settled;
+    expect(assembled.failure).toBeUndefined();
+    expect(assembled.archive?.manifest.scope).toMatchObject({
+      kind: "current-selection",
+      componentScope: "used",
+    });
+    expect(
+      assembled.archive?.manifest.entries.some((entry) =>
+        entry.path.includes("component%3Aspare"),
+      ),
+    ).toBe(false);
   });
 });

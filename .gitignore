@@ -36,3 +36,6 @@ extracted/
 .vscode/
 .claude/worktrees/
 .claude/settings.local.json
+
+# Temp
+temp/

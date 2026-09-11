@@ -737,9 +737,30 @@ describe("Component and instance collection", () => {
 
     expect(
       result.index.definitions.map((definition) => definition.source.id),
-    ).toEqual(["component:used-icon", "component:used-quiet"]);
+    ).toEqual(["component:used-icon", "component:used-quiet", set.id]);
     expect(result.definitionNodesById.has("component:used-set")).toBe(false);
     expect(result.definitionNodesById.has("component:used-loud")).toBe(false);
+    const setDefinition = result.index.definitions.find(
+      (definition) => definition.source.id === set.id,
+    );
+    // The un-selected owning set stays out of traversal (the loud sibling is
+    // never expanded), but its metadata record owns the property definitions
+    // that the exported variant's propertyDefinitionIds reference.
+    expect(setDefinition).toMatchObject({
+      componentKind: "component-set",
+      nodeId: set.id,
+      variantAxes: [{ name: "State", values: ["Quiet", "Loud"] }],
+      propertyDefinitions: [
+        {
+          id: "State",
+          name: "State",
+          propertyType: "VARIANT",
+          defaultValue: "Quiet",
+          variantOptions: ["Quiet", "Loud"],
+        },
+      ],
+    });
+    expect(setDefinition?.definitionArtifact).toBeUndefined();
     const quietDefinition = result.index.definitions.find(
       (definition) => definition.source.id === quietVariant.id,
     );
@@ -749,6 +770,17 @@ describe("Component and instance collection", () => {
       variantProperties: [{ property: "State", value: "Quiet" }],
     });
     expect(quietDefinition?.propertyDefinitions).toEqual([]);
+    const quietPropertyIds =
+      result.componentDataByNodeId.get(quietVariant.id)
+        ?.propertyDefinitionIds ?? [];
+    expect(quietPropertyIds).toEqual(["State"]);
+    for (const propertyId of quietPropertyIds) {
+      expect(
+        setDefinition?.propertyDefinitions?.some(
+          (definition) => definition.id === propertyId,
+        ),
+      ).toBe(true);
+    }
     expect(result.componentDataByNodeId.get(quietVariant.id)).toMatchObject({
       metadataCoverage: { status: "collected" },
       componentSet: { id: set.id },
@@ -864,5 +896,175 @@ describe("Component and instance collection", () => {
       set.id,
     );
     expect(result.complete).toBe(true);
+  });
+
+  it("follows CHANGE_TO destinations to sibling variants in used scope", async () => {
+    const page = {
+      id: "page:flow",
+      name: "Invented flow page",
+      type: "PAGE",
+    };
+    const spareVariant: SyntheticNode = {
+      id: "component:spare",
+      name: "State=Spare",
+      type: "COMPONENT",
+      key: "key:spare",
+      remote: false,
+      parent: null,
+      variantProperties: { State: "Spare" },
+      componentPropertyDefinitions: {},
+      componentPropertyReferences: null,
+      documentationLinks: [],
+      description: "Invented spare variant that must stay unindexed.",
+      descriptionMarkdown: "",
+      children: [],
+    };
+    const hoverVariant: SyntheticNode = {
+      id: "component:hover",
+      name: "State=Hover",
+      type: "COMPONENT",
+      key: "key:hover",
+      remote: false,
+      parent: null,
+      variantProperties: { State: "Hover" },
+      componentPropertyDefinitions: {},
+      componentPropertyReferences: null,
+      documentationLinks: [],
+      description: "Invented hover variant referenced by CHANGE_TO.",
+      descriptionMarkdown: "",
+      children: [],
+    };
+    const idleVariant: SyntheticNode = {
+      id: "component:idle",
+      name: "State=Idle",
+      type: "COMPONENT",
+      key: "key:idle",
+      remote: false,
+      parent: null,
+      variantProperties: { State: "Idle" },
+      componentPropertyDefinitions: {},
+      componentPropertyReferences: null,
+      documentationLinks: [],
+      description: "Invented idle variant instantiated by the selection.",
+      descriptionMarkdown: "",
+      children: [],
+      reactions: [
+        {
+          trigger: { type: "ON_HOVER" },
+          actions: [
+            {
+              type: "NODE",
+              navigation: "CHANGE_TO",
+              destinationId: "component:hover",
+              transition: null,
+            },
+            {
+              type: "NODE",
+              navigation: "NAVIGATE",
+              destinationId: "node:elsewhere",
+              transition: null,
+            },
+          ],
+        },
+      ],
+    };
+    const set: SyntheticNode & { children: SyntheticNode[] } = {
+      id: "component:flow-set",
+      name: "Invented flow set",
+      type: "COMPONENT_SET",
+      key: "key:flow-set",
+      remote: false,
+      parent: page,
+      variantProperties: null,
+      componentPropertyDefinitions: {
+        State: {
+          type: "VARIANT",
+          defaultValue: "Idle",
+          variantOptions: ["Idle", "Hover", "Spare"],
+        },
+      },
+      componentPropertyReferences: null,
+      documentationLinks: [],
+      description: "",
+      descriptionMarkdown: "",
+      children: [idleVariant, hoverVariant, spareVariant],
+    };
+    (idleVariant as unknown as { parent: unknown }).parent = set;
+    (hoverVariant as unknown as { parent: unknown }).parent = set;
+    (spareVariant as unknown as { parent: unknown }).parent = set;
+
+    const selectedInstance = {
+      id: "instance:flow-selected",
+      name: "Invented flow selected instance",
+      type: "INSTANCE",
+      componentProperties: {},
+      componentPropertyReferences: null,
+      overrides: [],
+      exposedInstances: [],
+      scaleFactor: 1,
+      getMainComponentAsync: () => Promise.resolve(idleVariant),
+      children: [],
+    } satisfies SyntheticNode;
+    const root = {
+      id: "root:flow",
+      name: "Invented flow root",
+      type: "FRAME",
+      componentPropertyReferences: null,
+      children: [selectedInstance],
+    } satisfies SyntheticNode;
+    const elsewhereFrame = {
+      id: "node:elsewhere",
+      name: "Invented navigate target",
+      type: "FRAME",
+      children: [],
+    } satisfies SyntheticNode;
+    let spareLookups = 0;
+    const adapter: ComponentCollectorAdapter = {
+      getNodeByIdAsync: (id) => {
+        if (id === hoverVariant.id) {
+          return Promise.resolve(scene(hoverVariant));
+        }
+        if (id === spareVariant.id) {
+          spareLookups += 1;
+          return Promise.resolve(scene(spareVariant));
+        }
+        if (id === elsewhereFrame.id) {
+          return Promise.resolve(scene(elsewhereFrame));
+        }
+        return Promise.resolve(null);
+      },
+    };
+
+    const diagnostics = new DiagnosticBag("component-change-to-test");
+    const result = await collectComponents({
+      roots: [scene(root)],
+      adapter,
+      diagnostics,
+      cancellation: new ExportCancellationToken(),
+      componentScope: "used",
+    });
+
+    // The CHANGE_TO sibling is exported; the unrelated Spare and the frame
+    // navigate target stay out. The owning set contributes its metadata
+    // record without expanding its variant subtree.
+    expect(
+      result.index.definitions.map((definition) => definition.source.id),
+    ).toEqual(["component:flow-set", "component:hover", "component:idle"]);
+    expect(result.definitionNodesById.has("component:hover")).toBe(true);
+    expect(result.definitionNodesById.has("component:spare")).toBe(false);
+    expect(result.definitionNodesById.has("component:flow-set")).toBe(false);
+    expect(result.definitionNodesById.has("node:elsewhere")).toBe(false);
+    expect(
+      result.index.definitions.find(
+        (definition) => definition.source.id === "component:flow-set",
+      ),
+    ).toMatchObject({
+      variantAxes: [{ name: "State", values: ["Idle", "Hover", "Spare"] }],
+    });
+    // Scoping is deliberate: no diagnostics for the skipped Spare, the
+    // non-component navigate target, or the un-exported set.
+    expect(diagnostics.list()).toEqual([]);
+    expect(result.complete).toBe(true);
+    expect(spareLookups).toBe(0);
   });
 });

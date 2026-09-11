@@ -520,6 +520,10 @@ async function collectComponentDefinitionArtifacts(
 ): Promise<ComponentDefinitionArtifactResult[]> {
   const results: ComponentDefinitionArtifactResult[] = [];
   // Reachable scope additionally exports binary assets for definition trees.
+  // Under "used" scope the omission is deliberate: definition trees keep exact
+  // vector geometry and text, image fills keep their imageHash, and the
+  // archive records the reduced contract via componentScope in the document
+  // and manifest plus coverage.assets: "not-collected" per definition.
   const exportDefinitionAssets = options.componentScope === "reachable";
   const componentSummaryIds = new Set(
     components.index.definitions
@@ -686,6 +690,11 @@ async function collectComponentDefinitionArtifacts(
       dependencyRefs: collected.dependencyRefs,
       styleUsage: styleUsageFromTree(collectedTree),
       diagnosticIds,
+      // Completeness is relative to the selected component scope: under
+      // "used", definition-asset bytes are intentionally not collected and
+      // count as collected-by-contract (see coverage.assets), while any
+      // failed dependency, reaction, text-segment, or root-scope asset
+      // collection still marks the definition incomplete.
       complete:
         collected.coverage.dependencyRefsComplete &&
         collected.coverage.interactionsComplete &&
@@ -900,6 +909,7 @@ function createDocument(
     pages: [sourceRefForPage(page)],
     currentPageId: page.id,
     selectedRootIds: roots.map((root) => root.id),
+    componentScope,
     counts: {
       localVariables: collectionCount(
         globalArtifacts.variables.localCount,
@@ -956,7 +966,7 @@ function createDocument(
       "Selection roots use deterministic document/canvas order because Plugin API selection order is unspecified.",
       "The installed @figma/plugin-typings@1.133.0 surface exposes annotations but no accessibility or ARIA node properties.",
       componentScope === "used"
-        ? "Component counts and per-definition IR cover only definitions instantiated by the selected roots (including nested instances and swap targets); sibling variants and owning component sets are not exported, and exact file-wide local component counts require an Entire file export."
+        ? "Component counts and per-definition IR cover only definitions instantiated by the selected roots (including nested instances, swap targets, and CHANGE_TO destinations); owning component sets are recorded as metadata-only definitions, remaining sibling variants are not exported, and exact file-wide local component counts require an Entire file export."
         : "Component counts and per-definition IR cover selected and reachable accessible definitions; exact file-wide local component counts require an Entire file export.",
       "Inaccessible referenced definitions remain unresolved with diagnostics and are never imported.",
       componentScope === "used"
@@ -1272,6 +1282,7 @@ export async function runSelectionExport(
     scope: {
       kind: "current-selection",
       orderedRootIds: roots.map((root) => root.id),
+      componentScope,
     },
     ownerConfirmedCurrent: true,
     counts: {

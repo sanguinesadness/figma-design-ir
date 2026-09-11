@@ -34,7 +34,10 @@ if one reaches a capacity limit, export a smaller current selection.
 Unpack the ZIP outside this repository and keep it out of Git. Direct an AI
 agent to start at `<snapshot-id>/agent/index.md`.
 
-- `manifest.json` describes scope, contents, and completeness.
+- `manifest.json` describes scope, contents, and completeness. For
+  current-selection exports its `scope.componentScope` records the component
+  scope the archive was built with (`used` by default, `reachable` for "All
+  reachable components"); `ir/document.json` repeats it as `componentScope`.
 - `diagnostics.json` explains missing or failed data.
 - `ir/` contains authoritative exact values.
 - `assets/` and `previews/` contain local visual evidence.
@@ -61,11 +64,21 @@ reload the plugin in Figma Desktop.
 - The archive reflects only data available through the public Figma Plugin API;
   it is not a lossless `.fig` backup. Missing library resources are diagnosed,
   not imported.
-- A current-selection export includes component definitions instantiated by
-  the selected roots (including nested instances and swap targets); sibling
-  variants and owning component sets are not exported. Binary assets come from
-  the selected roots only. Use an Entire file export for full file-local
-  component coverage.
+- A current-selection export in the default `used` component scope includes
+  component definitions instantiated by the selected roots (including nested
+  instances, swap targets, and sibling variants reachable through CHANGE_TO
+  interactions). Owning component sets are recorded as metadata-only
+  definitions — property definitions, variant axes, and the default variant —
+  without expanding their unused sibling variants. Definition trees keep exact
+  vector geometry, text values, and image hashes; raster bytes come from the
+  selected roots only, so images referenced exclusively by definitions are
+  recorded by hash without bytes. Completeness is relative to this scope: the
+  archive is `complete` when everything the scope promises was collected.
+  On mature design-system files this keeps archives hundreds of times lighter
+  and tens of times faster to build than a full traversal. Use an Entire file
+  export for full file-local component coverage, or switch the component scope
+  to "All reachable components" to expand every touched component set with
+  definition and paint-style assets.
 - Limits are 64 MiB per uncompressed entry, 384 MiB retained ZIP output, 65,535
   ZIP entries, and 1 MiB per generated Markdown file. Archive-wide capacity
   failures stop without requesting a partial save.

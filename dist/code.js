@@ -2110,7 +2110,7 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
     };
   }
 
-  // ../../../node_modules/fflate/esm/browser.js
+  // node_modules/fflate/esm/browser.js
   var u8 = Uint8Array;
   var u16 = Uint16Array;
   var i32 = Int32Array;
@@ -4058,6 +4058,7 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
         return id === void 0 ? [] : [id];
       })
     );
+    const pendingInteractionIds = /* @__PURE__ */ new Set();
     const reportProgress = (stage) => {
       options.onProgress?.({
         stage,
@@ -4157,7 +4158,150 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
       }
       enqueueDefinitionNode(node);
     };
-    while (traversalCursor < traversalQueue.length || pendingIds.size > 0) {
+    const readDefaultVariantId = (setNode) => {
+      const defaultVariant = readProperty(
+        setNode,
+        "defaultVariant",
+        options.diagnostics,
+        state
+      );
+      if (defaultVariant.present === true && typeof defaultVariant.value === "object" && defaultVariant.value !== null) {
+        try {
+          const value = defaultVariant.value.id;
+          if (typeof value === "string") {
+            return value;
+          }
+          invalidShapeDiagnostic(
+            setNode,
+            "$.defaultVariant.id",
+            options.diagnostics,
+            state
+          );
+        } catch (error) {
+          state.complete = false;
+          options.diagnostics.add({
+            code: DIAGNOSTIC_CODES.collectionPropertyAccessFailed,
+            severity: "warning",
+            message: "The default component variant could not be read.",
+            phase: "collection",
+            source: basicNodeSource(setNode),
+            propertyPath: "$.defaultVariant.id",
+            causedDataLoss: true,
+            technicalCause: normalizeSafeTechnicalCause(error, "property-access")
+          });
+        }
+      }
+      return void 0;
+    };
+    const buildSetDefinition = (setNode, source, variants, diagnosticStart2) => {
+      const setPropertyMetadata = cachedDefinitions(setNode);
+      const description = readProperty(
+        setNode,
+        "description",
+        options.diagnostics,
+        state
+      );
+      const markdown = readProperty(
+        setNode,
+        "descriptionMarkdown",
+        options.diagnostics,
+        state
+      );
+      const defaultVariantId = readDefaultVariantId(setNode);
+      const links = documentationLinks(setNode, options.diagnostics, state);
+      return {
+        componentKind: "component-set",
+        source,
+        nodeId: source.id,
+        ...defaultVariantId === void 0 ? {} : { defaultVariantId },
+        ...setPropertyMetadata.available ? {
+          variantAxes: setPropertyMetadata.variantAxes,
+          propertyDefinitions: setPropertyMetadata.definitions
+        } : {},
+        ...variants === void 0 ? {} : { variantProperties: variants },
+        ...links === void 0 ? {} : { documentationLinks: links },
+        ...description.ok && typeof description.value === "string" ? { description: description.value } : {},
+        ...markdown.ok && typeof markdown.value === "string" ? { descriptionMarkdown: markdown.value } : {},
+        diagnosticIds: options.diagnostics.listSince(diagnosticStart2).map((diagnostic) => diagnostic.id)
+      };
+    };
+    const buildComponentDefinition = (node, source, owningSet, propertyMetadata, variants, diagnosticStart2) => {
+      const description = readProperty(
+        node,
+        "description",
+        options.diagnostics,
+        state
+      );
+      const markdown = readProperty(
+        node,
+        "descriptionMarkdown",
+        options.diagnostics,
+        state
+      );
+      const links = documentationLinks(node, options.diagnostics, state);
+      return {
+        componentKind: "component",
+        source,
+        nodeId: source.id,
+        ...owningSet === void 0 ? {} : { componentSetId: owningSet.id },
+        ...propertyMetadata.available ? {
+          variantAxes: [],
+          propertyDefinitions: owningSet === void 0 ? propertyMetadata.definitions : []
+        } : {},
+        ...variants === void 0 ? {} : { variantProperties: variants },
+        ...links === void 0 ? {} : { documentationLinks: links },
+        ...description.ok && typeof description.value === "string" ? { description: description.value } : {},
+        ...markdown.ok && typeof markdown.value === "string" ? { descriptionMarkdown: markdown.value } : {},
+        diagnosticIds: options.diagnostics.listSince(diagnosticStart2).map((diagnostic) => diagnostic.id)
+      };
+    };
+    const registerSetMetadata = (setNode, setSource) => {
+      if (definitions.has(setSource.id) || options.session?.definitionById(setSource.id) !== void 0) {
+        return;
+      }
+      const setDiagnosticStart = options.diagnostics.size();
+      definitionsDiscovered += 1;
+      definitions.set(
+        setSource.id,
+        buildSetDefinition(
+          setNode,
+          setSource,
+          variantProperties(setNode, options.diagnostics, state),
+          setDiagnosticStart
+        )
+      );
+    };
+    const queueInteractionDestinations = (node) => {
+      if (!usedScope) {
+        return;
+      }
+      const read = readProperty(node, "reactions", options.diagnostics, state);
+      if (!read.ok || !Array.isArray(read.value)) {
+        return;
+      }
+      for (const reaction of read.value) {
+        if (typeof reaction !== "object" || reaction === null) {
+          continue;
+        }
+        const record = reaction;
+        const actions = Array.isArray(record.actions) ? record.actions : record.action === void 0 ? [] : [record.action];
+        for (const action of actions) {
+          if (typeof action !== "object" || action === null) {
+            continue;
+          }
+          const actionRecord = action;
+          if (actionRecord.type !== "NODE" || actionRecord.navigation !== "CHANGE_TO" || typeof actionRecord.destinationId !== "string" || actionRecord.destinationId.length === 0) {
+            continue;
+          }
+          const destinationId = actionRecord.destinationId;
+          if (definitions.has(destinationId) || queuedResolvedDefinitionIds.has(destinationId) || pendingInteractionIds.has(destinationId) || options.session?.definitionById(destinationId) !== void 0) {
+            continue;
+          }
+          pendingInteractionIds.add(destinationId);
+        }
+      }
+    };
+    while (traversalCursor < traversalQueue.length || pendingIds.size > 0 || pendingInteractionIds.size > 0) {
       options.cancellation.throwIfCancelled();
       const item = traversalQueue[traversalCursor];
       if (item !== void 0) {
@@ -4168,6 +4312,32 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
         }
       }
       if (item === void 0) {
+        if (pendingInteractionIds.size > 0) {
+          const destinationId = pendingInteractionIds.values().next().value;
+          pendingInteractionIds.delete(destinationId);
+          if (definitions.has(destinationId) || options.session?.definitionById(destinationId) !== void 0) {
+            continue;
+          }
+          let resolvedDestination;
+          idLookupsStarted += 1;
+          reportLookupBoundary("id-lookup", idLookupsStarted);
+          try {
+            options.cancellation.throwIfCancelled();
+            resolvedDestination = await options.adapter.getNodeByIdAsync(destinationId);
+            options.cancellation.throwIfCancelled();
+            idLookupsCompleted += 1;
+            reportLookupBoundary("id-lookup", idLookupsCompleted);
+          } catch {
+            options.cancellation.throwIfCancelled();
+            idLookupsCompleted += 1;
+            reportLookupBoundary("id-lookup", idLookupsCompleted);
+            continue;
+          }
+          if (resolvedDestination !== null && nodeType(resolvedDestination, options.diagnostics, state) === "COMPONENT") {
+            enqueueMainComponent(resolvedDestination);
+          }
+          continue;
+        }
         const requestEntry = pendingIds.entries().next().value;
         if (requestEntry === void 0) {
           break;
@@ -4296,7 +4466,11 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
               );
               definitionsOwner = parent.value;
               canReadOwnDefinitions = false;
-              if (!usedScope) {
+              if (usedScope) {
+                if (owningSet !== void 0) {
+                  registerSetMetadata(parent.value, owningSet);
+                }
+              } else {
                 enqueueDefinitionNode(parent.value);
               }
             } else {
@@ -4317,78 +4491,19 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
             options.diagnostics,
             state
           );
-          const description = readProperty(
+          const definition = type === "COMPONENT_SET" ? buildSetDefinition(
             item.node,
-            "description",
-            options.diagnostics,
-            state
-          );
-          const markdown = readProperty(
-            item.node,
-            "descriptionMarkdown",
-            options.diagnostics,
-            state
-          );
-          const defaultVariant = type === "COMPONENT_SET" ? readProperty(
-            item.node,
-            "defaultVariant",
-            options.diagnostics,
-            state
-          ) : void 0;
-          let defaultVariantId;
-          if (defaultVariant?.present === true && typeof defaultVariant.value === "object" && defaultVariant.value !== null) {
-            try {
-              const value = defaultVariant.value.id;
-              if (typeof value === "string") {
-                defaultVariantId = value;
-              } else {
-                invalidShapeDiagnostic(
-                  item.node,
-                  "$.defaultVariant.id",
-                  options.diagnostics,
-                  state
-                );
-              }
-            } catch (error) {
-              state.complete = false;
-              options.diagnostics.add({
-                code: DIAGNOSTIC_CODES.collectionPropertyAccessFailed,
-                severity: "warning",
-                message: "The default component variant could not be read.",
-                phase: "collection",
-                source: basicNodeSource(item.node),
-                propertyPath: "$.defaultVariant.id",
-                causedDataLoss: true,
-                technicalCause: normalizeSafeTechnicalCause(
-                  error,
-                  "property-access"
-                )
-              });
-            }
-          }
-          const definition = {
-            componentKind: type === "COMPONENT_SET" ? "component-set" : "component",
             source,
-            nodeId: source.id,
-            ...owningSet === void 0 ? {} : { componentSetId: owningSet.id },
-            ...defaultVariantId === void 0 ? {} : { defaultVariantId },
-            ...propertyMetadata.available ? {
-              variantAxes: type === "COMPONENT_SET" ? propertyMetadata.variantAxes : [],
-              propertyDefinitions: type === "COMPONENT_SET" || owningSet === void 0 ? propertyMetadata.definitions : []
-            } : {},
-            ...variants === void 0 ? {} : { variantProperties: variants },
-            ...(() => {
-              const links = documentationLinks(
-                item.node,
-                options.diagnostics,
-                state
-              );
-              return links === void 0 ? {} : { documentationLinks: links };
-            })(),
-            ...description.ok && typeof description.value === "string" ? { description: description.value } : {},
-            ...markdown.ok && typeof markdown.value === "string" ? { descriptionMarkdown: markdown.value } : {},
-            diagnosticIds: options.diagnostics.listSince(definitionDiagnosticStart).map((diagnostic) => diagnostic.id)
-          };
+            variants,
+            definitionDiagnosticStart
+          ) : buildComponentDefinition(
+            item.node,
+            source,
+            owningSet,
+            propertyMetadata,
+            variants,
+            definitionDiagnosticStart
+          );
           if (!definitions.has(source.id)) {
             definitionsDiscovered += 1;
           }
@@ -4564,6 +4679,7 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
           );
         }
       }
+      queueInteractionDestinations(item.node);
       const nodeChildren = children(item.node, options.diagnostics, state);
       for (const child of nodeChildren ?? []) {
         traversalQueue.push({
@@ -10741,6 +10857,11 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
         dependencyRefs: collected.dependencyRefs,
         styleUsage: styleUsageFromTree(collectedTree),
         diagnosticIds,
+        // Completeness is relative to the selected component scope: under
+        // "used", definition-asset bytes are intentionally not collected and
+        // count as collected-by-contract (see coverage.assets), while any
+        // failed dependency, reaction, text-segment, or root-scope asset
+        // collection still marks the definition incomplete.
         complete: collected.coverage.dependencyRefsComplete && collected.coverage.interactionsComplete && collected.coverage.textSegmentsComplete && (collectedAssets?.complete ?? true)
       });
       await yieldToFigma();
@@ -10904,6 +11025,7 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
       pages: [sourceRefForPage2(page)],
       currentPageId: page.id,
       selectedRootIds: roots.map((root) => root.id),
+      componentScope,
       counts: {
         localVariables: collectionCount2(
           globalArtifacts.variables.localCount,
@@ -10959,7 +11081,7 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
       limitations: [
         "Selection roots use deterministic document/canvas order because Plugin API selection order is unspecified.",
         "The installed @figma/plugin-typings@1.133.0 surface exposes annotations but no accessibility or ARIA node properties.",
-        componentScope === "used" ? "Component counts and per-definition IR cover only definitions instantiated by the selected roots (including nested instances and swap targets); sibling variants and owning component sets are not exported, and exact file-wide local component counts require an Entire file export." : "Component counts and per-definition IR cover selected and reachable accessible definitions; exact file-wide local component counts require an Entire file export.",
+        componentScope === "used" ? "Component counts and per-definition IR cover only definitions instantiated by the selected roots (including nested instances, swap targets, and CHANGE_TO destinations); owning component sets are recorded as metadata-only definitions, remaining sibling variants are not exported, and exact file-wide local component counts require an Entire file export." : "Component counts and per-definition IR cover selected and reachable accessible definitions; exact file-wide local component counts require an Entire file export.",
         "Inaccessible referenced definitions remain unresolved with diagnostics and are never imported.",
         componentScope === "used" ? "Raster and standalone-SVG bytes are exported only for image fills and vector nodes reachable through the selected roots; raster bytes referenced exclusively by component definitions or paint styles are omitted." : "Raster bytes are limited to image fills reachable through accessible selected roots, component definitions, and paint styles.",
         `Raw, raster, SVG, and preview artifacts that fail are absent only with source-attributed diagnostics under ${snapshotId}.`
@@ -11244,7 +11366,8 @@ ${markdownList(variables.collections.map((collection) => `${sourceLabel(collecti
       document: { name: figma.root.name },
       scope: {
         kind: "current-selection",
-        orderedRootIds: roots.map((root) => root.id)
+        orderedRootIds: roots.map((root) => root.id),
+        componentScope
       },
       ownerConfirmedCurrent: true,
       counts: {

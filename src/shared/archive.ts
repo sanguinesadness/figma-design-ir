@@ -83,6 +83,13 @@ export type ExportScopeManifest =
   | {
       readonly kind: "current-selection";
       readonly orderedRootIds: readonly string[];
+      /**
+       * Machine-readable component scope of the export: "used" keeps only
+       * definitions instantiated by the selection, "reachable" expands every
+       * touched component set. Archives written by this exporter always set
+       * the field; older archives may omit it.
+       */
+      readonly componentScope?: "used" | "reachable";
     };
 
 export interface ArchiveManifest {

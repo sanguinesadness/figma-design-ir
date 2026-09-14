@@ -91,6 +91,12 @@ describe("agent-readable Markdown projection", () => {
       first.find((entry) => entry.path.endsWith("agent/index.md"))?.text,
     ).toContain("## Snapshot identity and completeness");
     expect(
+      first.find((entry) => entry.path.endsWith("agent/index.md"))?.text,
+    ).not.toContain("Document diagnostic IDs:");
+    expect(
+      first.find((entry) => entry.path.endsWith("agent/index.md"))?.text,
+    ).toContain("Open the complete diagnostic list");
+    expect(
       first.find((entry) => entry.path.endsWith("agent/tokens.md"))?.text,
     ).toContain("raw:");
     expect(first.map((entry) => entry.text).join("\n")).toContain(

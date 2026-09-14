@@ -519,6 +519,14 @@ export interface DesignIrDocument {
   readonly pages: readonly (SourceRef & { readonly kind: "page" })[];
   readonly currentPageId: string;
   readonly selectedRootIds: readonly string[];
+  /**
+   * Machine-readable component scope of a current-selection export: "used"
+   * keeps only definitions instantiated by the selection (owning sets are
+   * metadata-only, sibling variants appear only as CHANGE_TO destinations),
+   * "reachable" expands every touched component set. Completeness for such
+   * archives is relative to this scope; entire-file exports omit the field.
+   */
+  readonly componentScope?: "used" | "reachable";
   readonly counts: {
     readonly localVariables: CollectionCountIR;
     readonly localStyles: CollectionCountIR;

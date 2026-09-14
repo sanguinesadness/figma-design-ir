@@ -15,6 +15,14 @@ import { ARCHIVE_FORMAT_VERSION, DESIGN_IR_SCHEMA_VERSION } from "./ir";
 export const PROTOCOL_VERSION = 4 as const;
 
 export type ExportScope = "current-selection" | "entire-file";
+/**
+ * Component-collection scope for current-selection exports. "used" (default)
+ * keeps only definitions instantiated by the selected roots — compact
+ * archives for application work. "reachable" additionally expands every
+ * component set touched by the selection so all sibling variants are
+ * exported — intended for building UI kits with complete states.
+ */
+export type ExportComponentScope = "used" | "reachable";
 export type ExportId = string;
 
 export interface InitializeRequest {
@@ -34,6 +42,7 @@ export interface StartExportRequest {
   readonly requestId: string;
   readonly snapshotId: string;
   readonly scope: ExportScope;
+  readonly componentScope?: ExportComponentScope;
   readonly ownerConfirmedCurrent: true;
 }
 
@@ -324,11 +333,15 @@ function isManifestScope(
 ): value is ArchiveManifestDraft["scope"] {
   return (
     isRecord(value) &&
-    hasExactKeys(value, ["kind", "orderedRootIds"]) &&
+    hasExactKeys(value, ["kind", "orderedRootIds"], ["componentScope"]) &&
     isExportScope(value.kind) &&
     isStringArray(value.orderedRootIds) &&
     value.orderedRootIds.every((rootId) => rootId.length > 0) &&
-    new Set(value.orderedRootIds).size === value.orderedRootIds.length
+    new Set(value.orderedRootIds).size === value.orderedRootIds.length &&
+    (value.componentScope === undefined ||
+      value.componentScope === "used" ||
+      value.componentScope === "reachable") &&
+    (value.kind !== "entire-file" || value.componentScope === undefined)
   );
 }
 
@@ -447,18 +460,30 @@ export function parseUiToMainMessage(value: unknown): UiToMainMessage | null {
 
   if (
     value.type === "start-export" &&
-    hasExactKeys(value, [
+    (hasExactKeys(value, [
       "type",
       "protocolVersion",
       "requestId",
       "snapshotId",
       "scope",
       "ownerConfirmedCurrent",
-    ]) &&
+    ]) ||
+      hasExactKeys(value, [
+        "type",
+        "protocolVersion",
+        "requestId",
+        "snapshotId",
+        "scope",
+        "componentScope",
+        "ownerConfirmedCurrent",
+      ])) &&
     isRequestId(value.requestId) &&
     typeof value.snapshotId === "string" &&
     parseSnapshotId(value.snapshotId) !== null &&
     isExportScope(value.scope) &&
+    (value.componentScope === undefined ||
+      value.componentScope === "used" ||
+      value.componentScope === "reachable") &&
     value.ownerConfirmedCurrent === true
   ) {
     return {
@@ -467,6 +492,9 @@ export function parseUiToMainMessage(value: unknown): UiToMainMessage | null {
       requestId: value.requestId,
       snapshotId: value.snapshotId,
       scope: value.scope,
+      ...(value.componentScope === undefined
+        ? {}
+        : { componentScope: value.componentScope }),
       ownerConfirmedCurrent: true,
     };
   }

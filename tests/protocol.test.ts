@@ -201,6 +201,17 @@ describe("main to UI protocol validation", () => {
     expect(
       parseUiToMainMessage({ ...validStart, unexpected: true }),
     ).toBeNull();
+    const startWithScope = {
+      ...validStart,
+      componentScope: "reachable",
+    } as const;
+    expect(parseUiToMainMessage(startWithScope)).toEqual(startWithScope);
+    expect(
+      parseUiToMainMessage({ ...validStart, componentScope: "used" }),
+    ).toEqual({ ...validStart, componentScope: "used" });
+    expect(
+      parseUiToMainMessage({ ...validStart, componentScope: "everything" }),
+    ).toBeNull();
 
     const acceptedEntry = {
       type: "archive-entry-accepted",
@@ -268,6 +279,99 @@ describe("main to UI protocol validation", () => {
       artifacts: [{ path: documentPath, status: "emitted" }],
     });
     expect(ready).not.toBeNull();
+    expect(
+      parseMainToUiMessage({
+        type: "export-ready",
+        protocolVersion: PROTOCOL_VERSION,
+        exportId: activeExportId,
+        manifestDraft: {
+          archiveVersion: ARCHIVE_FORMAT_VERSION,
+          schemaVersion: DESIGN_IR_SCHEMA_VERSION,
+          exporter: {
+            packageName: "figma-design-ir",
+            packageVersion: "0.1.0",
+          },
+          snapshotId,
+          exportedAtUtc: "2026-08-13T12:00:00.000Z",
+          editorType: "figma",
+          document: { name: "Synthetic Protocol Fixture" },
+          scope: {
+            kind: "current-selection",
+            orderedRootIds: ["node:alpha"],
+            componentScope: "used",
+          },
+          ownerConfirmedCurrent: true,
+          counts: { pages: 1, roots: 1, artifacts: 1 },
+          diagnosticCounts: { info: 0, warning: 0, error: 0, fatal: 0 },
+          completeness: "complete",
+          capabilities: ["current-selection"],
+          pluginApiLimitations: [],
+        },
+        artifacts: [{ path: documentPath, status: "emitted" }],
+      }),
+    ).not.toBeNull();
+    expect(
+      parseMainToUiMessage({
+        type: "export-ready",
+        protocolVersion: PROTOCOL_VERSION,
+        exportId: activeExportId,
+        manifestDraft: {
+          archiveVersion: ARCHIVE_FORMAT_VERSION,
+          schemaVersion: DESIGN_IR_SCHEMA_VERSION,
+          exporter: {
+            packageName: "figma-design-ir",
+            packageVersion: "0.1.0",
+          },
+          snapshotId,
+          exportedAtUtc: "2026-08-13T12:00:00.000Z",
+          editorType: "figma",
+          document: { name: "Synthetic Protocol Fixture" },
+          scope: {
+            kind: "current-selection",
+            orderedRootIds: ["node:alpha"],
+            componentScope: "every-definition",
+          },
+          ownerConfirmedCurrent: true,
+          counts: { pages: 1, roots: 1, artifacts: 1 },
+          diagnosticCounts: { info: 0, warning: 0, error: 0, fatal: 0 },
+          completeness: "complete",
+          capabilities: ["current-selection"],
+          pluginApiLimitations: [],
+        },
+        artifacts: [{ path: documentPath, status: "emitted" }],
+      }),
+    ).toBeNull();
+    expect(
+      parseMainToUiMessage({
+        type: "export-ready",
+        protocolVersion: PROTOCOL_VERSION,
+        exportId: activeExportId,
+        manifestDraft: {
+          archiveVersion: ARCHIVE_FORMAT_VERSION,
+          schemaVersion: DESIGN_IR_SCHEMA_VERSION,
+          exporter: {
+            packageName: "figma-design-ir",
+            packageVersion: "0.1.0",
+          },
+          snapshotId,
+          exportedAtUtc: "2026-08-13T12:00:00.000Z",
+          editorType: "figma",
+          document: { name: "Synthetic Protocol Fixture" },
+          scope: {
+            kind: "entire-file",
+            orderedRootIds: ["node:alpha", "node:beta"],
+            componentScope: "used",
+          },
+          ownerConfirmedCurrent: true,
+          counts: { pages: 2, roots: 2, artifacts: 1 },
+          diagnosticCounts: { info: 0, warning: 0, error: 0, fatal: 0 },
+          completeness: "complete",
+          capabilities: ["entire-file"],
+          pluginApiLimitations: [],
+        },
+        artifacts: [{ path: documentPath, status: "emitted" }],
+      }),
+    ).toBeNull();
     expect(
       parseMainToUiMessage({
         type: "export-ready",

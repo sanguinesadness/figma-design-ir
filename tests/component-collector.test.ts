@@ -7,6 +7,7 @@ import {
   type ComponentCollectionProgress,
   type CollectedComponents,
 } from "../src/main/collect-components";
+
 import {
   ExportCancellationToken,
   ExportCancelledError,
@@ -612,5 +613,458 @@ describe("Component and instance collection", () => {
     expect(JSON.stringify(reused.progress)).not.toMatch(
       /Invented|component:|instance:|root:/u,
     );
+  });
+
+  it("keeps only instantiated variants and leaves sets unindexed in used scope", async () => {
+    const page = { id: "page:used", name: "Invented used page", type: "PAGE" };
+    const icon = {
+      id: "component:used-icon",
+      name: "Invented used icon",
+      type: "COMPONENT",
+      key: "key:used-icon",
+      remote: false,
+      parent: page,
+      variantProperties: null,
+      componentPropertyDefinitions: {},
+      componentPropertyReferences: null,
+      documentationLinks: [],
+      description: "",
+      descriptionMarkdown: "",
+      children: [],
+    } satisfies SyntheticNode;
+    const loudVariant: SyntheticNode = {
+      id: "component:used-loud",
+      name: "State=Loud",
+      type: "COMPONENT",
+      key: "key:used-loud",
+      remote: false,
+      parent: null,
+      variantProperties: { State: "Loud" },
+      componentPropertyDefinitions: {},
+      componentPropertyReferences: null,
+      documentationLinks: [],
+      description: "Invented loud variant that must stay unindexed.",
+      descriptionMarkdown: "",
+      children: [],
+    };
+    const quietVariant: SyntheticNode = {
+      id: "component:used-quiet",
+      name: "State=Quiet",
+      type: "COMPONENT",
+      key: "key:used-quiet",
+      remote: false,
+      parent: null,
+      variantProperties: { State: "Quiet" },
+      componentPropertyDefinitions: {},
+      componentPropertyReferences: null,
+      documentationLinks: [],
+      description: "Invented quiet variant instantiated by the selection.",
+      descriptionMarkdown: "",
+      children: [
+        {
+          id: "instance:nested-used",
+          name: "Invented nested used instance",
+          type: "INSTANCE",
+          componentProperties: {},
+          componentPropertyReferences: null,
+          overrides: [],
+          exposedInstances: [],
+          isExposedInstance: false,
+          scaleFactor: 1,
+          getMainComponentAsync: () => Promise.resolve(icon),
+          children: [],
+        } satisfies SyntheticNode,
+      ],
+    };
+    const set: SyntheticNode & { children: SyntheticNode[] } = {
+      id: "component:used-set",
+      name: "Invented used set",
+      type: "COMPONENT_SET",
+      key: "key:used-set",
+      remote: false,
+      parent: page,
+      variantProperties: null,
+      componentPropertyDefinitions: {
+        State: {
+          type: "VARIANT",
+          defaultValue: "Quiet",
+          variantOptions: ["Quiet", "Loud"],
+        },
+      },
+      componentPropertyReferences: null,
+      documentationLinks: [],
+      description: "",
+      descriptionMarkdown: "",
+      children: [quietVariant, loudVariant],
+    };
+    (loudVariant as unknown as { parent: unknown }).parent = set;
+    (quietVariant as unknown as { parent: unknown }).parent = set;
+
+    const selectedInstance = {
+      id: "instance:used-selected",
+      name: "Invented used selected instance",
+      type: "INSTANCE",
+      componentProperties: {},
+      componentPropertyReferences: null,
+      overrides: [],
+      exposedInstances: [],
+      scaleFactor: 1,
+      getMainComponentAsync: () => Promise.resolve(quietVariant),
+      children: [],
+    } satisfies SyntheticNode;
+    const root = {
+      id: "root:used",
+      name: "Invented used root",
+      type: "FRAME",
+      componentPropertyReferences: null,
+      children: [selectedInstance],
+    } satisfies SyntheticNode;
+    const adapter: ComponentCollectorAdapter = {
+      getNodeByIdAsync: (id) =>
+        Promise.resolve(
+          id === icon.id ? scene(icon) : id === set.id ? scene(set) : null,
+        ),
+    };
+
+    const diagnostics = new DiagnosticBag("component-used-scope-test");
+    const result = await collectComponents({
+      roots: [scene(root)],
+      adapter,
+      diagnostics,
+      cancellation: new ExportCancellationToken(),
+      componentScope: "used",
+    });
+
+    expect(
+      result.index.definitions.map((definition) => definition.source.id),
+    ).toEqual(["component:used-icon", "component:used-quiet", set.id]);
+    expect(result.definitionNodesById.has("component:used-set")).toBe(false);
+    expect(result.definitionNodesById.has("component:used-loud")).toBe(false);
+    const setDefinition = result.index.definitions.find(
+      (definition) => definition.source.id === set.id,
+    );
+    // The un-selected owning set stays out of traversal (the loud sibling is
+    // never expanded), but its metadata record owns the property definitions
+    // that the exported variant's propertyDefinitionIds reference.
+    expect(setDefinition).toMatchObject({
+      componentKind: "component-set",
+      nodeId: set.id,
+      variantAxes: [{ name: "State", values: ["Quiet", "Loud"] }],
+      propertyDefinitions: [
+        {
+          id: "State",
+          name: "State",
+          propertyType: "VARIANT",
+          defaultValue: "Quiet",
+          variantOptions: ["Quiet", "Loud"],
+        },
+      ],
+    });
+    expect(setDefinition?.definitionArtifact).toBeUndefined();
+    const quietDefinition = result.index.definitions.find(
+      (definition) => definition.source.id === quietVariant.id,
+    );
+    expect(quietDefinition).toMatchObject({
+      componentKind: "component",
+      componentSetId: set.id,
+      variantProperties: [{ property: "State", value: "Quiet" }],
+    });
+    expect(quietDefinition?.propertyDefinitions).toEqual([]);
+    const quietPropertyIds =
+      result.componentDataByNodeId.get(quietVariant.id)
+        ?.propertyDefinitionIds ?? [];
+    expect(quietPropertyIds).toEqual(["State"]);
+    for (const propertyId of quietPropertyIds) {
+      expect(
+        setDefinition?.propertyDefinitions?.some(
+          (definition) => definition.id === propertyId,
+        ),
+      ).toBe(true);
+    }
+    expect(result.componentDataByNodeId.get(quietVariant.id)).toMatchObject({
+      metadataCoverage: { status: "collected" },
+      componentSet: { id: set.id },
+    });
+    expect(
+      new Set(
+        result.index.dependencies.map(
+          (dependency) =>
+            `${dependency.from.id}:${dependency.relationship}:${dependency.to.id}`,
+        ),
+      ),
+    ).toEqual(
+      new Set([
+        "component:used-set:contains:component:used-quiet",
+        "component:used-quiet:instance:component:used-icon",
+      ]),
+    );
+    // No diagnostics may be produced for the skipped sibling variant or the
+    // skipped set: scoping is deliberate, not data loss. The root instance
+    // edge has no component owner, and the contains edge names the
+    // un-exported set without requiring its definition.
+    expect(diagnostics.list()).toEqual([]);
+    expect(result.complete).toBe(true);
+    expect(
+      result.instanceDataByNodeId.get("instance:nested-used"),
+    ).toMatchObject({ mainComponent: { id: icon.id } });
+  });
+
+  it("fully expands a selected component set in used scope", async () => {
+    const page = {
+      id: "page:used-set-root",
+      name: "Invented page",
+      type: "PAGE",
+    };
+    const variantA: SyntheticNode = {
+      id: "component:setroot-a",
+      name: "State=A",
+      type: "COMPONENT",
+      key: "key:setroot-a",
+      remote: false,
+      parent: null,
+      variantProperties: { State: "A" },
+      componentPropertyDefinitions: {},
+      componentPropertyReferences: null,
+      documentationLinks: [],
+      description: "",
+      descriptionMarkdown: "",
+      children: [],
+    };
+    const variantB: SyntheticNode = {
+      id: "component:setroot-b",
+      name: "State=B",
+      type: "COMPONENT",
+      key: "key:setroot-b",
+      remote: false,
+      parent: null,
+      variantProperties: { State: "B" },
+      componentPropertyDefinitions: {},
+      componentPropertyReferences: null,
+      documentationLinks: [],
+      description: "",
+      descriptionMarkdown: "",
+      children: [],
+    };
+    const set: SyntheticNode & { children: SyntheticNode[] } = {
+      id: "component:setroot",
+      name: "Invented set-root set",
+      type: "COMPONENT_SET",
+      key: "key:setroot",
+      remote: false,
+      parent: page,
+      variantProperties: null,
+      componentPropertyDefinitions: {
+        State: {
+          type: "VARIANT",
+          defaultValue: "A",
+          variantOptions: ["A", "B"],
+        },
+      },
+      componentPropertyReferences: null,
+      documentationLinks: [],
+      description: "",
+      descriptionMarkdown: "",
+      children: [variantA, variantB],
+    };
+    (variantA as unknown as { parent: unknown }).parent = set;
+    (variantB as unknown as { parent: unknown }).parent = set;
+    Object.defineProperty(set, "defaultVariant", {
+      enumerable: true,
+      value: variantA,
+    });
+
+    const adapter: ComponentCollectorAdapter = {
+      getNodeByIdAsync: () => Promise.resolve(null),
+    };
+    const diagnostics = new DiagnosticBag("component-used-set-root-test");
+    const result = await collectComponents({
+      roots: [scene(set)],
+      adapter,
+      diagnostics,
+      cancellation: new ExportCancellationToken(),
+      componentScope: "used",
+    });
+
+    expect(
+      result.index.definitions.map((definition) => definition.source.id),
+    ).toEqual([
+      "component:setroot",
+      "component:setroot-a",
+      "component:setroot-b",
+    ]);
+    expect(result.definitionNodesById.get("component:setroot")?.id).toBe(
+      set.id,
+    );
+    expect(result.complete).toBe(true);
+  });
+
+  it("follows CHANGE_TO destinations to sibling variants in used scope", async () => {
+    const page = {
+      id: "page:flow",
+      name: "Invented flow page",
+      type: "PAGE",
+    };
+    const spareVariant: SyntheticNode = {
+      id: "component:spare",
+      name: "State=Spare",
+      type: "COMPONENT",
+      key: "key:spare",
+      remote: false,
+      parent: null,
+      variantProperties: { State: "Spare" },
+      componentPropertyDefinitions: {},
+      componentPropertyReferences: null,
+      documentationLinks: [],
+      description: "Invented spare variant that must stay unindexed.",
+      descriptionMarkdown: "",
+      children: [],
+    };
+    const hoverVariant: SyntheticNode = {
+      id: "component:hover",
+      name: "State=Hover",
+      type: "COMPONENT",
+      key: "key:hover",
+      remote: false,
+      parent: null,
+      variantProperties: { State: "Hover" },
+      componentPropertyDefinitions: {},
+      componentPropertyReferences: null,
+      documentationLinks: [],
+      description: "Invented hover variant referenced by CHANGE_TO.",
+      descriptionMarkdown: "",
+      children: [],
+    };
+    const idleVariant: SyntheticNode = {
+      id: "component:idle",
+      name: "State=Idle",
+      type: "COMPONENT",
+      key: "key:idle",
+      remote: false,
+      parent: null,
+      variantProperties: { State: "Idle" },
+      componentPropertyDefinitions: {},
+      componentPropertyReferences: null,
+      documentationLinks: [],
+      description: "Invented idle variant instantiated by the selection.",
+      descriptionMarkdown: "",
+      children: [],
+      reactions: [
+        {
+          trigger: { type: "ON_HOVER" },
+          actions: [
+            {
+              type: "NODE",
+              navigation: "CHANGE_TO",
+              destinationId: "component:hover",
+              transition: null,
+            },
+            {
+              type: "NODE",
+              navigation: "NAVIGATE",
+              destinationId: "node:elsewhere",
+              transition: null,
+            },
+          ],
+        },
+      ],
+    };
+    const set: SyntheticNode & { children: SyntheticNode[] } = {
+      id: "component:flow-set",
+      name: "Invented flow set",
+      type: "COMPONENT_SET",
+      key: "key:flow-set",
+      remote: false,
+      parent: page,
+      variantProperties: null,
+      componentPropertyDefinitions: {
+        State: {
+          type: "VARIANT",
+          defaultValue: "Idle",
+          variantOptions: ["Idle", "Hover", "Spare"],
+        },
+      },
+      componentPropertyReferences: null,
+      documentationLinks: [],
+      description: "",
+      descriptionMarkdown: "",
+      children: [idleVariant, hoverVariant, spareVariant],
+    };
+    (idleVariant as unknown as { parent: unknown }).parent = set;
+    (hoverVariant as unknown as { parent: unknown }).parent = set;
+    (spareVariant as unknown as { parent: unknown }).parent = set;
+
+    const selectedInstance = {
+      id: "instance:flow-selected",
+      name: "Invented flow selected instance",
+      type: "INSTANCE",
+      componentProperties: {},
+      componentPropertyReferences: null,
+      overrides: [],
+      exposedInstances: [],
+      scaleFactor: 1,
+      getMainComponentAsync: () => Promise.resolve(idleVariant),
+      children: [],
+    } satisfies SyntheticNode;
+    const root = {
+      id: "root:flow",
+      name: "Invented flow root",
+      type: "FRAME",
+      componentPropertyReferences: null,
+      children: [selectedInstance],
+    } satisfies SyntheticNode;
+    const elsewhereFrame = {
+      id: "node:elsewhere",
+      name: "Invented navigate target",
+      type: "FRAME",
+      children: [],
+    } satisfies SyntheticNode;
+    let spareLookups = 0;
+    const adapter: ComponentCollectorAdapter = {
+      getNodeByIdAsync: (id) => {
+        if (id === hoverVariant.id) {
+          return Promise.resolve(scene(hoverVariant));
+        }
+        if (id === spareVariant.id) {
+          spareLookups += 1;
+          return Promise.resolve(scene(spareVariant));
+        }
+        if (id === elsewhereFrame.id) {
+          return Promise.resolve(scene(elsewhereFrame));
+        }
+        return Promise.resolve(null);
+      },
+    };
+
+    const diagnostics = new DiagnosticBag("component-change-to-test");
+    const result = await collectComponents({
+      roots: [scene(root)],
+      adapter,
+      diagnostics,
+      cancellation: new ExportCancellationToken(),
+      componentScope: "used",
+    });
+
+    // The CHANGE_TO sibling is exported; the unrelated Spare and the frame
+    // navigate target stay out. The owning set contributes its metadata
+    // record without expanding its variant subtree.
+    expect(
+      result.index.definitions.map((definition) => definition.source.id),
+    ).toEqual(["component:flow-set", "component:hover", "component:idle"]);
+    expect(result.definitionNodesById.has("component:hover")).toBe(true);
+    expect(result.definitionNodesById.has("component:spare")).toBe(false);
+    expect(result.definitionNodesById.has("component:flow-set")).toBe(false);
+    expect(result.definitionNodesById.has("node:elsewhere")).toBe(false);
+    expect(
+      result.index.definitions.find(
+        (definition) => definition.source.id === "component:flow-set",
+      ),
+    ).toMatchObject({
+      variantAxes: [{ name: "State", values: ["Idle", "Hover", "Spare"] }],
+    });
+    // Scoping is deliberate: no diagnostics for the skipped Spare, the
+    // non-component navigate target, or the un-exported set.
+    expect(diagnostics.list()).toEqual([]);
+    expect(result.complete).toBe(true);
+    expect(spareLookups).toBe(0);
   });
 });

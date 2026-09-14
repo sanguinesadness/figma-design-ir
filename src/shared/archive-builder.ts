@@ -406,7 +406,13 @@ function summarizeComponentsJson(value: unknown): ComponentsJsonSummary {
     kind: value.kind,
     schemaVersion: value.schemaVersion,
     definitionsValid: true,
-    definitionArtifacts: value.definitions.map((definition) => {
+    definitionArtifacts: value.definitions.flatMap((definition) => {
+      if (isRecord(definition) && definition.definitionArtifact === undefined) {
+        // Metadata-only index records (used-scope owning component sets) are
+        // authoritative for definitions and axes but carry no per-definition
+        // artifact, so they impose no archive requirement.
+        return [];
+      }
       const source = isRecord(definition) ? definition.source : undefined;
       const artifact = isRecord(definition)
         ? definition.definitionArtifact
@@ -414,16 +420,18 @@ function summarizeComponentsJson(value: unknown): ComponentsJsonSummary {
       const sourceId = isRecord(source) ? source.id : undefined;
       const path = isRecord(artifact) ? artifact.path : undefined;
       const mediaType = isRecord(artifact) ? artifact.mediaType : undefined;
-      return {
-        ...(typeof sourceId === "string" ? { sourceId } : {}),
-        ...(typeof path === "string" ? { path } : {}),
-        ...(typeof mediaType === "string" ? { mediaType } : {}),
-        validShape:
-          typeof sourceId === "string" &&
-          sourceId.length > 0 &&
-          typeof path === "string" &&
-          typeof mediaType === "string",
-      };
+      return [
+        {
+          ...(typeof sourceId === "string" ? { sourceId } : {}),
+          ...(typeof path === "string" ? { path } : {}),
+          ...(typeof mediaType === "string" ? { mediaType } : {}),
+          validShape:
+            typeof sourceId === "string" &&
+            sourceId.length > 0 &&
+            typeof path === "string" &&
+            typeof mediaType === "string",
+        },
+      ];
     }),
   };
 }
@@ -1383,6 +1391,16 @@ export class StreamingArchiveBuilder {
       throw new ArchiveAssemblyError(
         "invalid-manifest",
         "The document IR and manifest selected-root scope disagree.",
+      );
+    }
+    if (
+      draft.scope.kind === "current-selection" &&
+      documentValue.componentScope !== undefined &&
+      documentValue.componentScope !== draft.scope.componentScope
+    ) {
+      throw new ArchiveAssemblyError(
+        "invalid-manifest",
+        "The document IR and manifest component scope disagree.",
       );
     }
     const entireFilePageIds =

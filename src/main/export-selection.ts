@@ -59,7 +59,7 @@ import {
 import { collectStyles, type CollectedStyles } from "./collect-styles";
 import { collectVariables, type CollectedVariables } from "./collect-variables";
 
-const EXPORTER_PACKAGE_VERSION = "0.1.0";
+const EXPORTER_PACKAGE_VERSION = "0.2.0";
 
 export interface RunSelectionExportOptions {
   readonly exportId: ExportId;
@@ -71,6 +71,14 @@ export interface RunSelectionExportOptions {
   ) => void | Promise<void>;
   readonly exportedAtUtc?: string;
   readonly optionalArtifactByteLimit?: number;
+  /**
+   * "used" (default) exports only definitions instantiated by the selected
+   * roots and binary assets from the roots alone. "reachable" additionally
+   * expands every component set touched by the selection and exports
+   * definition- and paint-style assets, matching full design-system
+   * coverage.
+   */
+  readonly componentScope?: "used" | "reachable";
 }
 
 interface RootArtifactResult {
@@ -511,6 +519,12 @@ async function collectComponentDefinitionArtifacts(
   options: RunSelectionExportOptions,
 ): Promise<ComponentDefinitionArtifactResult[]> {
   const results: ComponentDefinitionArtifactResult[] = [];
+  // Reachable scope additionally exports binary assets for definition trees.
+  // Under "used" scope the omission is deliberate: definition trees keep exact
+  // vector geometry and text, image fills keep their imageHash, and the
+  // archive records the reduced contract via componentScope in the document
+  // and manifest plus coverage.assets: "not-collected" per definition.
+  const exportDefinitionAssets = options.componentScope === "reachable";
   const componentSummaryIds = new Set(
     components.index.definitions
       .filter((definition) =>
@@ -538,10 +552,10 @@ async function collectComponentDefinitionArtifacts(
       results.length,
       components.index.definitions.length,
     );
-    const collectedAssets = await assets.collectTree(
-      collected.tree,
-      collected.nodesById,
-    );
+    const collectedAssets = exportDefinitionAssets
+      ? await assets.collectTree(collected.tree, collected.nodesById)
+      : undefined;
+    const collectedTree = collectedAssets?.tree ?? collected.tree;
     const raw = await exportRawComponent(
       node,
       definition.source,
@@ -572,12 +586,12 @@ async function collectComponentDefinitionArtifacts(
         ...diagnostics
           .listSince(diagnosticStart)
           .map((diagnostic) => diagnostic.id),
-        ...collectedAssets.diagnosticIds,
+        ...(collectedAssets?.diagnosticIds ?? []),
       ]),
     ];
     const rawArtifact = "artifact" in raw ? raw.artifact : undefined;
     const normalizedTree = withRootMetadata(
-      collectedAssets.tree,
+      collectedTree,
       rawArtifact,
       diagnosticIds,
     );
@@ -588,7 +602,7 @@ async function collectComponentDefinitionArtifacts(
       dependencyRefs: collected.dependencyRefs,
       normalizedTree,
       reactions: collected.reactions,
-      assets: collectedAssets.assets,
+      assets: collectedAssets?.assets ?? [],
       coverage: {
         dependencies: collected.coverage.dependencyRefsComplete
           ? { status: "collected" }
@@ -604,13 +618,20 @@ async function collectComponentDefinitionArtifacts(
               reason:
                 "Some reactions were inaccessible while collecting the reachable component definition.",
             },
-        assets: collectedAssets.complete
-          ? { status: "collected" }
-          : {
-              status: "partial",
-              reason:
-                "One or more reachable raster or standalone vector assets could not be exported.",
-            },
+        assets:
+          collectedAssets === undefined
+            ? {
+                status: "not-collected",
+                reason:
+                  "Binary assets are exported only for selected roots; component trees keep exact vector geometry and text values instead.",
+              }
+            : collectedAssets.complete
+              ? { status: "collected" }
+              : {
+                  status: "partial",
+                  reason:
+                    "One or more reachable raster or standalone vector assets could not be exported.",
+                },
         textSegments: collected.coverage.textSegmentsComplete
           ? { status: "collected" }
           : {
@@ -667,13 +688,18 @@ async function collectComponentDefinitionArtifacts(
       componentId: definition.source.id,
       artifactRef: { path, mediaType: "application/json" },
       dependencyRefs: collected.dependencyRefs,
-      styleUsage: styleUsageFromTree(collectedAssets.tree),
+      styleUsage: styleUsageFromTree(collectedTree),
       diagnosticIds,
+      // Completeness is relative to the selected component scope: under
+      // "used", definition-asset bytes are intentionally not collected and
+      // count as collected-by-contract (see coverage.assets), while any
+      // failed dependency, reaction, text-segment, or root-scope asset
+      // collection still marks the definition incomplete.
       complete:
         collected.coverage.dependencyRefsComplete &&
         collected.coverage.interactionsComplete &&
         collected.coverage.textSegmentsComplete &&
-        collectedAssets.complete,
+        (collectedAssets?.complete ?? true),
     });
     await yieldToFigma();
     options.cancellation.throwIfCancelled();
@@ -873,6 +899,7 @@ function createDocument(
   rootResults: readonly RootArtifactResult[],
   globalArtifacts: GlobalArtifacts,
   diagnostics: DiagnosticBag,
+  componentScope: "used" | "reachable",
 ): DesignIrDocument {
   return {
     kind: "design-ir-document",
@@ -882,6 +909,7 @@ function createDocument(
     pages: [sourceRefForPage(page)],
     currentPageId: page.id,
     selectedRootIds: roots.map((root) => root.id),
+    componentScope,
     counts: {
       localVariables: collectionCount(
         globalArtifacts.variables.localCount,
@@ -937,9 +965,13 @@ function createDocument(
     limitations: [
       "Selection roots use deterministic document/canvas order because Plugin API selection order is unspecified.",
       "The installed @figma/plugin-typings@1.133.0 surface exposes annotations but no accessibility or ARIA node properties.",
-      "Component counts and per-definition IR cover selected and reachable accessible definitions; exact file-wide local component counts require an Entire file export.",
+      componentScope === "used"
+        ? "Component counts and per-definition IR cover only definitions instantiated by the selected roots (including nested instances, swap targets, and CHANGE_TO destinations); owning component sets are recorded as metadata-only definitions, remaining sibling variants are not exported, and exact file-wide local component counts require an Entire file export."
+        : "Component counts and per-definition IR cover selected and reachable accessible definitions; exact file-wide local component counts require an Entire file export.",
       "Inaccessible referenced definitions remain unresolved with diagnostics and are never imported.",
-      "Raster bytes are limited to image fills reachable through accessible selected roots, component definitions, and paint styles.",
+      componentScope === "used"
+        ? "Raster and standalone-SVG bytes are exported only for image fills and vector nodes reachable through the selected roots; raster bytes referenced exclusively by component definitions or paint styles are omitted."
+        : "Raster bytes are limited to image fills reachable through accessible selected roots, component definitions, and paint styles.",
       `Raw, raster, SVG, and preview artifacts that fail are absent only with source-attributed diagnostics under ${snapshotId}.`,
     ],
     diagnosticIds: diagnostics.list().map((diagnostic) => diagnostic.id),
@@ -996,6 +1028,7 @@ export async function runSelectionExport(
 
   const page = figma.currentPage;
   const pageRef = sourceRefForPage(page);
+  const componentScope = options.componentScope ?? "used";
   postProgress(options, "collection", 0, roots.length + 3, "Components");
   const collectedComponents = await collectComponents({
     roots,
@@ -1009,6 +1042,7 @@ export async function runSelectionExport(
     },
     diagnostics,
     cancellation: options.cancellation,
+    componentScope,
   });
   const componentDefinitionResults = await collectComponentDefinitionArtifacts(
     collectedComponents,
@@ -1109,13 +1143,15 @@ export async function runSelectionExport(
     cancellation: options.cancellation,
   });
   postProgress(options, "asset", roots.length + 1, roots.length + 2, "Styles");
-  const collectedStyleAssets = await assetSession.collectStyles(
-    collectedStyles.artifact,
-  );
-  const styles: CollectedStyles = {
-    ...collectedStyles,
-    artifact: collectedStyleAssets.artifact,
-  };
+  // Paint-style raster bytes are exported only in reachable scope.
+  const styles: CollectedStyles =
+    componentScope === "reachable"
+      ? {
+          ...collectedStyles,
+          artifact: (await assetSession.collectStyles(collectedStyles.artifact))
+            .artifact,
+        }
+      : collectedStyles;
   postProgress(
     options,
     "collection",
@@ -1161,6 +1197,7 @@ export async function runSelectionExport(
     rootResults,
     globalArtifacts,
     diagnostics,
+    componentScope,
   );
   const documentPath = archivePaths.irDocument(snapshotId);
   await emitEntry(
@@ -1245,6 +1282,7 @@ export async function runSelectionExport(
     scope: {
       kind: "current-selection",
       orderedRootIds: roots.map((root) => root.id),
+      componentScope,
     },
     ownerConfirmedCurrent: true,
     counts: {
